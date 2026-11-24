@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+
+# Xcode
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
+build/
+*.xcuserstate
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# fastlane
+fastlane/report.xml
+fastlane/test_output/
+fastlane/README.md
+
+# Secrets and signing material - never commit
+.env
+.env.*
+*.p8
+*.p12
+*.cer
+*.mobileprovision
+*.certSigningRequest
+supabase/.temp/
+supabase/.env
