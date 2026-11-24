@@ -8,13 +8,13 @@ enum DemoData {
     }
 
     static let taskBoard = TaskBoard(tasks: [
-        TaskItem(id: "gift", title: "Geschenk für Oma besorgen", owner: .alex, due: "bis Fr", status: .open),
-        TaskItem(id: "dentist", title: "Zahnarzt-Termin ausmachen", owner: .alex, due: "heute", status: .open),
-        TaskItem(id: "windows", title: "Fenster putzen", owner: .helper, due: "Do", status: .open),
-        TaskItem(id: "cake", title: "Kuchen backen", owner: .sam, due: "Fr", status: .doing),
-        TaskItem(id: "tax", title: "Steuerunterlagen sortieren", owner: .alex, due: "ohne Datum", status: .doing),
-        TaskItem(id: "flowers", title: "Blumen kaufen", owner: .sam, due: "erledigt", status: .done),
-        TaskItem(id: "card", title: "Karte schreiben", owner: .alex, due: "erledigt", status: .done)
+        TaskItem(id: "gift", title: "Geschenk für Oma besorgen", assignee: "Alex", due: "bis Fr", status: .open),
+        TaskItem(id: "dentist", title: "Zahnarzt-Termin ausmachen", assignee: "Alex", due: "heute", status: .open),
+        TaskItem(id: "windows", title: "Fenster putzen", assignee: "Haushaltshilfe", due: "Do", status: .open),
+        TaskItem(id: "cake", title: "Kuchen backen", assignee: "Sam", due: "Fr", status: .doing),
+        TaskItem(id: "tax", title: "Steuerunterlagen sortieren", assignee: "Alex", due: "ohne Datum", status: .doing),
+        TaskItem(id: "flowers", title: "Blumen kaufen", assignee: "Sam", due: "erledigt", status: .done),
+        TaskItem(id: "card", title: "Karte schreiben", assignee: "Alex", due: "erledigt", status: .done)
     ])
 
     static let shoppingList = ShoppingList(items: [

@@ -24,6 +24,7 @@ struct PlaceholderView: View {
 /// "Mehr": entry point to the secondary screens. Only the way back to the start screen works for now.
 struct MoreView: View {
     let open: (Route) -> Void
+    let signOut: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -35,6 +36,7 @@ struct MoreView: View {
                 .foregroundStyle(Theme.muted)
             moreButton("Einkauf", systemImage: "cart", id: "open-shopping") { open(.shopping) }
             moreButton("Zur Pusteblume", systemImage: "leaf", id: "open-start") { open(.start) }
+            moreButton("Abmelden", systemImage: "rectangle.portrait.and.arrow.right", id: "sign-out", action: signOut)
             Spacer()
         }
         .padding(.horizontal, 20)

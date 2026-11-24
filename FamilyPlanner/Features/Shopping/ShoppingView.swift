@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Shared shopping list. Tapping an item moves it into the basket.
 struct ShoppingView: View {
-    @State private var list = DemoData.shoppingList
+    @ObservedObject var model: ShoppingViewModel
     @State private var draft = ""
 
     var body: some View {
@@ -13,7 +13,7 @@ struct ShoppingView: View {
                         .font(Theme.display(36))
                         .foregroundStyle(Theme.text)
                     Spacer()
-                    Text("\(list.inBasketCount) von \(list.items.count) im Korb")
+                    Text("\(model.list.inBasketCount) von \(model.list.items.count) im Korb")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Theme.text)
                         .padding(.horizontal, 14)
@@ -21,9 +21,13 @@ struct ShoppingView: View {
                         .background(Theme.sage, in: Capsule())
                 }
 
+                if let message = model.errorMessage {
+                    ErrorBanner(message: message)
+                }
+
                 addRow
 
-                ForEach(list.sections) { section in
+                ForEach(model.list.sections) { section in
                     Text(section.title.uppercased())
                         .font(.system(size: 12, weight: .bold))
                         .tracking(1.2)
@@ -31,7 +35,7 @@ struct ShoppingView: View {
                         .padding(.horizontal, 8)
                         .padding(.top, 6)
                     ForEach(section.items) { item in
-                        ShoppingRow(item: item) { list.toggle(item.id) }
+                        ShoppingRow(item: item) { Task { await model.toggle(item.id) } }
                     }
                 }
             }
@@ -41,6 +45,8 @@ struct ShoppingView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollIndicators(.hidden)
+        .refreshable { await model.load() }
+        .task { await model.load() }
     }
 
     private var addRow: some View {
@@ -67,9 +73,9 @@ struct ShoppingView: View {
     }
 
     private func addDraft() {
-        if list.add(name: draft) {
-            draft = ""
-        }
+        let name = draft
+        draft = ""
+        Task { await model.add(name: name) }
     }
 }
 
