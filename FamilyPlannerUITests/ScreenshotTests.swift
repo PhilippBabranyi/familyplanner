@@ -33,6 +33,16 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(app.buttons["status-Läuft"].waitForExistence(timeout: 5))
         capture("05-tasks")
 
+        // Create a task through the plus button.
+        app.buttons["add-task"].tap()
+        let titleField = app.textFields["task-title"]
+        XCTAssertTrue(titleField.waitForExistence(timeout: 5))
+        titleField.tap()
+        titleField.typeText("Fahrrad reparieren")
+        capture("05b-new-task")
+        app.buttons["task-save"].tap()
+        XCTAssertTrue(app.staticTexts["Fahrrad reparieren"].waitForExistence(timeout: 5))
+
         app.buttons["tab-more"].tap()
         XCTAssertTrue(app.buttons["open-shopping"].waitForExistence(timeout: 5))
         app.buttons["open-shopping"].tap()
@@ -40,9 +50,9 @@ final class ScreenshotTests: XCTestCase {
         app.buttons["item-tomatoes"].tap()
         capture("06-shopping")
 
-        app.buttons["tab-more"].tap()
-        XCTAssertTrue(app.buttons["open-start"].waitForExistence(timeout: 5))
-        app.buttons["open-start"].tap()
+        // The dandelion button leads back to the start screen from anywhere.
+        XCTAssertTrue(app.buttons["home-button"].waitForExistence(timeout: 5))
+        app.buttons["home-button"].tap()
         XCTAssertTrue(app.buttons["seed-today"].waitForExistence(timeout: 5))
     }
 

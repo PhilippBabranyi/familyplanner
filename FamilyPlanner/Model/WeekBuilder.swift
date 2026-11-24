@@ -1,19 +1,6 @@
 import Foundation
 
-/// A calendar item as stored in the database, before it is placed in a concrete week.
-struct StoredCalendarItem {
-    let id: String
-    let title: String
-    let note: String?
-    /// First (or only) day, `yyyy-MM-dd`.
-    let startsOn: String
-    let time: TimeOfDay
-    let repeatsWeekly: Bool
-    let assignee: String?
-    let cashCents: Int?
-}
-
-/// Turns stored items and pickup times into the plan of one concrete week.
+/// Turns stored items, pickup times and holidays into the plan of one concrete week.
 enum WeekBuilder {
     static func calendar() -> Calendar {
         var calendar = Calendar(identifier: .iso8601)
@@ -48,40 +35,40 @@ enum WeekBuilder {
         calendar.date(byAdding: .day, value: day.rawValue - 1, to: weekStart) ?? weekStart
     }
 
-    static func plan(
-        items: [StoredCalendarItem],
-        pickups: [Weekday: TimeOfDay],
-        weekStart: Date,
-        calendar: Calendar
-    ) -> WeekPlan {
+    static func plan(data: CalendarData, weekStart: Date, calendar: Calendar) -> WeekPlan {
         var itemsByDay: [Weekday: [WeekItem]] = [:]
+        var holidayNames: [Weekday: String] = [:]
         for day in Weekday.allCases {
-            let dayDate = date(of: day, weekStart: weekStart, calendar: calendar)
-            let dayText = isoString(dayDate, calendar: calendar)
-            for item in items where occurs(item, on: dayText, as: day, calendar: calendar) {
+            let dayText = isoString(date(of: day, weekStart: weekStart, calendar: calendar), calendar: calendar)
+            let holiday = data.holidays.first { $0.contains(dayText) }
+            if let holiday { holidayNames[day] = holiday.name }
+            for item in data.items where occurs(item, on: dayText, as: day, inHoliday: holiday != nil) {
                 itemsByDay[day, default: []].append(WeekItem(
                     id: "\(item.id)-\(dayText)",
                     time: item.time,
                     title: item.title,
                     note: item.note,
                     assignee: item.assignee,
-                    tag: item.cashCents.map { .cash(cents: $0) }
+                    tag: item.cashCents.map { .cash(cents: $0) },
+                    sourceId: item.id
                 ))
             }
         }
-        return WeekPlan(pickup: schedule(from: pickups), itemsByDay: itemsByDay)
+        var schedule = Self.schedule(from: data.pickups)
+        schedule.pickupDays.subtract(holidayNames.keys)
+        return WeekPlan(pickup: schedule, itemsByDay: itemsByDay, holidays: holidayNames)
     }
 
     private static func occurs(
         _ item: StoredCalendarItem,
         on dayText: String,
         as day: Weekday,
-        calendar: Calendar
+        inHoliday: Bool
     ) -> Bool {
-        if item.startsOn == dayText { return true }
-        guard item.repeatsWeekly, item.startsOn < dayText,
-              let start = date(fromISO: item.startsOn, calendar: calendar) else { return false }
-        return weekday(of: start, calendar: calendar) == day
+        guard item.isSeries else { return item.startsOn == dayText }
+        guard item.weekdays.contains(day), item.startsOn <= dayText else { return false }
+        if let until = item.repeatUntil, dayText > until { return false }
+        return !(item.skipHolidays && inHoliday)
     }
 
     /// The most common pickup time becomes the default, all other times are exceptions.
@@ -105,4 +92,7 @@ extension TimeOfDay {
         guard parts.count >= 2 else { return nil }
         self.init(hour: parts[0], minute: parts[1])
     }
+
+    /// Value for the database, e.g. "07:30".
+    var databaseValue: String { description }
 }

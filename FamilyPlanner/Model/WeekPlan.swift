@@ -13,12 +13,16 @@ struct WeekItem: Identifiable {
     /// Display name of the person the item is for, nil if it is for everyone.
     var assignee: String?
     var tag: ItemTag?
+    /// The stored item this entry comes from, nil for demo entries.
+    var sourceId: String?
 }
 
 /// All items of one week plus the pickup schedule.
 struct WeekPlan {
     var pickup: PickupSchedule
     var itemsByDay: [Weekday: [WeekItem]]
+    /// Holidays by weekday of this week (value is the holiday name). No pickup on these days.
+    var holidays: [Weekday: String] = [:]
 
     /// Items of a day, earliest first.
     func items(on day: Weekday) -> [WeekItem] {

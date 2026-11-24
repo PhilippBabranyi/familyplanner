@@ -8,12 +8,12 @@ struct RootView: View {
     @StateObject private var week: WeekViewModel
     @State private var route: Route = .start
 
-    init(auth: AuthModel, dataSource: FamilyDataSource) {
+    init(auth: AuthModel, dataSource: FamilyDataSource, now: Date = Date()) {
         self.auth = auth
         self.dataSource = dataSource
         _tasks = StateObject(wrappedValue: TasksViewModel(source: dataSource))
         _shopping = StateObject(wrappedValue: ShoppingViewModel(source: dataSource))
-        _week = StateObject(wrappedValue: WeekViewModel(source: dataSource))
+        _week = StateObject(wrappedValue: WeekViewModel(source: dataSource, now: now))
     }
 
     var body: some View {
@@ -35,11 +35,36 @@ struct RootView: View {
     @ViewBuilder
     private var signedInContent: some View {
         content
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if route != .start { homeBar }
+            }
         if route != .start {
             FloatingTabBar(selection: $route)
                 .padding(.horizontal, 20)
                 .padding(.bottom, 8)
         }
+    }
+
+    /// Always-visible way back to the dandelion start screen.
+    private var homeBar: some View {
+        HStack {
+            Button {
+                route = .start
+            } label: {
+                Image(systemName: "leaf.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 48, height: 48)
+                    .background(Theme.surface, in: Circle())
+                    .shadow(color: Theme.shadow.opacity(0.5), radius: 5, x: 0, y: 2)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Zur Startseite")
+            .accessibilityIdentifier("home-button")
+            Spacer()
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 4)
     }
 
     @ViewBuilder

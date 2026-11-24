@@ -23,6 +23,24 @@ final class TasksViewModel: ObservableObject {
         }
     }
 
+    func members() async -> [Member] {
+        (try? await source.loadMembers()) ?? []
+    }
+
+    fileprivate func perform(
+        _ failure: String,
+        _ action: (FamilyDataSource) async throws -> Void
+    ) async -> Bool {
+        do {
+            try await action(source)
+        } catch {
+            errorMessage = failure
+            return false
+        }
+        await load()
+        return true
+    }
+
     /// Moves the task to its next status right away and undoes that if saving fails.
     func advance(_ id: String) async {
         guard let task = board.tasks.first(where: { $0.id == id }) else { return }
@@ -35,6 +53,21 @@ final class TasksViewModel: ObservableObject {
             board = previous
             errorMessage = "Die Änderung konnte nicht gespeichert werden."
         }
+    }
+}
+
+extension TasksViewModel {
+    /// Saves a new or edited task. Returns false (and shows a message) if saving failed.
+    func save(_ draft: TaskDraft) async -> Bool {
+        let title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return false }
+        var clean = draft
+        clean.title = title
+        return await perform("Die Aufgabe konnte nicht gespeichert werden.") { try await $0.saveTask(clean) }
+    }
+
+    func delete(id: String) async -> Bool {
+        await perform("Die Aufgabe konnte nicht gelöscht werden.") { try await $0.deleteTask(id: id) }
     }
 }
 
@@ -86,6 +119,7 @@ final class ShoppingViewModel: ObservableObject {
 
 @MainActor
 final class WeekViewModel: ObservableObject {
+    @Published private(set) var data = CalendarData()
     @Published private(set) var plan = WeekPlan(
         pickup: PickupSchedule(pickupDays: [], defaultTime: .at(15, 0), exceptions: [:]),
         itemsByDay: [:]
@@ -116,13 +150,65 @@ final class WeekViewModel: ObservableObject {
         calendar.component(.day, from: date(of: day))
     }
 
+    func members() async -> [Member] {
+        (try? await source.loadMembers()) ?? []
+    }
+
+    func storedItem(id: String) -> StoredCalendarItem? {
+        data.items.first { $0.id == id }
+    }
+
     func load() async {
         do {
-            plan = try await source.loadWeek(starting: weekStart)
+            data = try await source.loadCalendar()
+            plan = WeekBuilder.plan(data: data, weekStart: weekStart, calendar: calendar)
             memberName = try await source.currentMemberName()
             errorMessage = nil
         } catch {
             errorMessage = "Der Wochenplan konnte nicht geladen werden."
         }
+    }
+
+    func save(_ draft: CalendarItemDraft) async -> Bool {
+        let title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return false }
+        var clean = draft
+        clean.title = title
+        return await change("Der Termin konnte nicht gespeichert werden.") { try await $0.saveCalendarItem(clean) }
+    }
+
+    func deleteItem(id: String) async -> Bool {
+        await change("Der Termin konnte nicht gelöscht werden.") { try await $0.deleteCalendarItem(id: id) }
+    }
+
+    func savePickups(_ times: [Weekday: TimeOfDay]) async -> Bool {
+        await change("Die Abholzeiten konnten nicht gespeichert werden.") { try await $0.setPickupTimes(times) }
+    }
+
+    func addHoliday(name: String, startsOn: String, endsOn: String) async -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, startsOn <= endsOn else { return false }
+        return await change("Die Ferien konnten nicht gespeichert werden.") {
+            try await $0.addHoliday(name: trimmed, startsOn: startsOn, endsOn: endsOn)
+        }
+    }
+
+    func deleteHoliday(id: String) async -> Bool {
+        await change("Die Ferien konnten nicht gelöscht werden.") { try await $0.deleteHoliday(id: id) }
+    }
+
+    /// Runs a write, then reloads. Shows `failure` and returns false if the write fails.
+    private func change(
+        _ failure: String,
+        _ action: (FamilyDataSource) async throws -> Void
+    ) async -> Bool {
+        do {
+            try await action(source)
+        } catch {
+            errorMessage = failure
+            return false
+        }
+        await load()
+        return true
     }
 }

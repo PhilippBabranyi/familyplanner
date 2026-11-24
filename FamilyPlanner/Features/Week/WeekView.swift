@@ -4,6 +4,8 @@ import SwiftUI
 struct WeekView: View {
     @ObservedObject var model: WeekViewModel
     @State private var selectedDay: Weekday?
+    @State private var editor: ItemEditorTarget?
+    @State private var showsPickups = false
 
     private var day: Weekday { selectedDay ?? model.todayWeekday }
     private var plan: WeekPlan { model.plan }
@@ -16,9 +18,20 @@ struct WeekView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .tracking(1.2)
                         .foregroundStyle(Theme.muted)
-                    Text("Diese Woche")
-                        .font(Theme.display(36))
-                        .foregroundStyle(Theme.text)
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Diese Woche")
+                            .font(Theme.display(36))
+                            .foregroundStyle(Theme.text)
+                        Spacer()
+                        Button("Abholung & Ferien") { showsPickups = true }
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Theme.text)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(Theme.surface, in: Capsule())
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("open-pickups")
+                    }
                 }
 
                 if let message = model.errorMessage {
@@ -31,8 +44,19 @@ struct WeekView: View {
                     pickupCard(time: pickup, isException: plan.pickup.isException(on: day))
                 }
 
+                if let holiday = plan.holidays[day] {
+                    Text("Ferien: \(holiday) · keine Abholung")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Theme.text)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(Theme.sage, in: Capsule())
+                }
+
                 ForEach(plan.items(on: day)) { item in
                     WeekItemRow(item: item)
+                        .contentShape(Rectangle())
+                        .onTapGesture { edit(item) }
                 }
             }
             .padding(.horizontal, 20)
@@ -44,6 +68,20 @@ struct WeekView: View {
         .refreshable { await model.load() }
         .task { await model.load() }
         .accessibilityIdentifier("screen-week")
+        .addButton(identifier: "add-item") {
+            editor = ItemEditorTarget(item: nil, defaultDate: model.date(of: day))
+        }
+        .sheet(item: $editor) { target in
+            ItemFormSheet(model: model, target: target)
+        }
+        .sheet(isPresented: $showsPickups) {
+            PickupSheet(model: model)
+        }
+    }
+
+    private func edit(_ item: WeekItem) {
+        guard let sourceId = item.sourceId, let stored = model.storedItem(id: sourceId) else { return }
+        editor = ItemEditorTarget(item: stored, defaultDate: model.date(of: day))
     }
 
     private var rangeTitle: String {
@@ -110,5 +148,30 @@ struct WeekView: View {
             isException ? Theme.butter : Theme.surfaceAlt,
             in: RoundedRectangle(cornerRadius: 30, style: .continuous)
         )
+    }
+}
+
+/// What the item form is opened for: an existing item, or nothing for a new one.
+struct ItemEditorTarget: Identifiable {
+    let id = UUID()
+    let item: StoredCalendarItem?
+    let defaultDate: Date
+}
+
+/// Loads the family members, then shows the item form.
+struct ItemFormSheet: View {
+    @ObservedObject var model: WeekViewModel
+    let target: ItemEditorTarget
+    @State private var members: [Member] = []
+
+    var body: some View {
+        CalendarItemFormView(
+            existing: target.item,
+            defaultDate: target.defaultDate,
+            members: members,
+            onSave: { await model.save($0) },
+            onDelete: { await model.deleteItem(id: $0) }
+        )
+        .task { members = await model.members() }
     }
 }

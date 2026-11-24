@@ -4,6 +4,7 @@ import SwiftUI
 struct TasksView: View {
     @ObservedObject var model: TasksViewModel
     @State private var filter: TaskStatus = .open
+    @State private var editor: TaskEditorTarget?
 
     var body: some View {
         ScrollView {
@@ -20,6 +21,8 @@ struct TasksView: View {
 
                 ForEach(model.board.tasks(in: filter)) { task in
                     TaskCard(task: task) { Task { await model.advance(task.id) } }
+                        .contentShape(Rectangle())
+                        .onTapGesture { editor = TaskEditorTarget(task: task) }
                 }
 
                 if model.board.tasks(in: filter).isEmpty && !model.isLoading {
@@ -37,6 +40,10 @@ struct TasksView: View {
         .scrollIndicators(.hidden)
         .refreshable { await model.load() }
         .task { await model.load() }
+        .addButton(identifier: "add-task") { editor = TaskEditorTarget(task: nil) }
+        .sheet(item: $editor) { target in
+            TaskFormSheet(model: model, target: target)
+        }
     }
 
     private var statusPicker: some View {
@@ -98,5 +105,28 @@ private struct TaskCard: View {
 
     private var personName: String {
         task.assignee ?? "Niemand"
+    }
+}
+
+/// What the task form is opened for: an existing task, or nothing for a new one.
+struct TaskEditorTarget: Identifiable {
+    let id = UUID()
+    let task: TaskItem?
+}
+
+/// Loads the family members, then shows the task form.
+private struct TaskFormSheet: View {
+    @ObservedObject var model: TasksViewModel
+    let target: TaskEditorTarget
+    @State private var members: [Member] = []
+
+    var body: some View {
+        TaskFormView(
+            existing: target.task,
+            members: members,
+            onSave: { await model.save($0) },
+            onDelete: { await model.delete(id: $0) }
+        )
+        .task { members = await model.members() }
     }
 }
