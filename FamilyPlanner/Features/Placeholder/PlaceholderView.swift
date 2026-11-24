@@ -35,7 +35,6 @@ struct MoreView: View {
                 .font(.system(size: 15))
                 .foregroundStyle(Theme.muted)
             moreButton("Einkauf", systemImage: "cart", id: "open-shopping") { open(.shopping) }
-            moreButton("Zur Pusteblume", systemImage: "leaf", id: "open-start") { open(.start) }
             moreButton("Abmelden", systemImage: "rectangle.portrait.and.arrow.right", id: "sign-out", action: signOut)
             Spacer()
         }

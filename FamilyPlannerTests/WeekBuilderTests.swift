@@ -14,14 +14,32 @@ final class WeekBuilderTests: XCTestCase {
     private func item(
         _ id: String,
         on startsOn: String,
-        weekly: Bool = false,
+        weekdays: Set<Weekday> = [],
+        until: String? = nil,
+        skipHolidays: Bool = false,
         at time: TimeOfDay = .at(9, 0),
         cash: Int? = nil
     ) -> StoredCalendarItem {
         StoredCalendarItem(
             id: id, title: id, note: nil, startsOn: startsOn, time: time,
-            repeatsWeekly: weekly, assignee: nil, cashCents: cash
+            weekdays: weekdays, repeatUntil: until, skipHolidays: skipHolidays, cashCents: cash
         )
+    }
+
+    private func plan(
+        _ items: [StoredCalendarItem] = [],
+        pickups: [Weekday: TimeOfDay] = [:],
+        holidays: [Holiday] = []
+    ) -> WeekPlan {
+        WeekBuilder.plan(
+            data: CalendarData(items: items, pickups: pickups, holidays: holidays),
+            weekStart: weekStart,
+            calendar: calendar
+        )
+    }
+
+    private func total(_ plan: WeekPlan) -> Int {
+        Weekday.allCases.map { plan.items(on: $0).count }.reduce(0, +)
     }
 
     private var weekStart: Date { date("2026-11-23") }
@@ -38,36 +56,63 @@ final class WeekBuilderTests: XCTestCase {
     }
 
     func testOneOffItemAppearsOnlyOnItsDay() {
-        let plan = WeekBuilder.plan(items: [item("op", on: "2026-11-25")], pickups: [:],
-                                    weekStart: weekStart, calendar: calendar)
-        XCTAssertEqual(plan.items(on: .wednesday).count, 1)
-        XCTAssertEqual(Weekday.allCases.map { plan.items(on: $0).count }.reduce(0, +), 1)
+        let result = plan([item("op", on: "2026-11-25")])
+        XCTAssertEqual(result.items(on: .wednesday).count, 1)
+        XCTAssertEqual(total(result), 1)
     }
 
     func testOneOffItemOfAnotherWeekIsNotShown() {
-        let plan = WeekBuilder.plan(items: [item("later", on: "2026-12-02")], pickups: [:],
-                                    weekStart: weekStart, calendar: calendar)
-        XCTAssertTrue(Weekday.allCases.allSatisfy { plan.items(on: $0).isEmpty })
+        XCTAssertEqual(total(plan([item("later", on: "2026-12-02")])), 0)
     }
 
-    func testWeeklyItemRepeatsOnTheSameWeekdayFromItsStartOn() {
-        // 2026-11-06 is a Friday.
-        let weekly = item("piano", on: "2026-11-06", weekly: true)
-        let plan = WeekBuilder.plan(items: [weekly], pickups: [:], weekStart: weekStart, calendar: calendar)
-        XCTAssertEqual(plan.items(on: .friday).count, 1)
-        XCTAssertEqual(Weekday.allCases.map { plan.items(on: $0).count }.reduce(0, +), 1)
+    func testSeriesRepeatsOnItsWeekdaysFromItsStartOn() {
+        let series = item("pickup", on: "2026-11-02", weekdays: [.monday, .tuesday, .wednesday, .friday])
+        let result = plan([series])
+        XCTAssertEqual(result.items(on: .monday).count, 1)
+        XCTAssertEqual(result.items(on: .thursday).count, 0)
+        XCTAssertEqual(result.items(on: .friday).count, 1)
+        XCTAssertEqual(total(result), 4)
     }
 
-    func testWeeklyItemDoesNotAppearBeforeItStarts() {
-        let weekly = item("piano", on: "2026-12-04", weekly: true)
-        let plan = WeekBuilder.plan(items: [weekly], pickups: [:], weekStart: weekStart, calendar: calendar)
-        XCTAssertTrue(plan.items(on: .friday).isEmpty)
+    func testSeriesDoesNotAppearBeforeItStarts() {
+        XCTAssertEqual(total(plan([item("piano", on: "2026-12-04", weekdays: [.friday])])), 0)
+    }
+
+    func testSeriesStopsAfterItsEndDate() {
+        let series = item("course", on: "2026-11-02", weekdays: [.monday, .friday], until: "2026-11-25")
+        let result = plan([series])
+        XCTAssertEqual(result.items(on: .monday).count, 1)
+        XCTAssertEqual(result.items(on: .friday).count, 0)
+    }
+
+    func testSeriesWithSkipHolidaysPausesInHolidaysOnly() {
+        let series = item("kita", on: "2026-11-02", weekdays: [.monday, .tuesday], skipHolidays: true)
+        let always = item("sports", on: "2026-11-02", weekdays: [.monday, .tuesday])
+        let holiday = Holiday(id: "h", name: "Herbst", startsOn: "2026-11-24", endsOn: "2026-11-27")
+        let result = plan([series, always], holidays: [holiday])
+        XCTAssertEqual(result.items(on: .monday).count, 2)
+        XCTAssertEqual(result.items(on: .tuesday).map(\.title), ["sports"])
+        XCTAssertEqual(result.holidays[.tuesday], "Herbst")
+        XCTAssertNil(result.holidays[.monday])
+    }
+
+    func testNoPickupOnHolidayDaysButNormalOtherwise() {
+        let pickups: [Weekday: TimeOfDay] = [.monday: .at(15, 20), .tuesday: .at(15, 20), .thursday: .at(16, 20)]
+        let holiday = Holiday(id: "h", name: "Herbst", startsOn: "2026-11-24", endsOn: "2026-11-26")
+        let result = plan(pickups: pickups, holidays: [holiday])
+        XCTAssertEqual(result.pickup.time(on: .monday), .at(15, 20))
+        XCTAssertNil(result.pickup.time(on: .tuesday))
+        XCTAssertNil(result.pickup.time(on: .thursday))
     }
 
     func testCashTagBecomesPartOfTheWeekTotal() {
-        let plan = WeekBuilder.plan(items: [item("sitter", on: "2026-11-27", cash: 2000)], pickups: [:],
-                                    weekStart: weekStart, calendar: calendar)
-        XCTAssertEqual(plan.cashNeededCents(on: .friday), 2000)
+        let result = plan([item("sitter", on: "2026-11-27", cash: 2000)])
+        XCTAssertEqual(result.cashNeededCents(on: .friday), 2000)
+    }
+
+    func testEntriesKnowTheirStoredItem() {
+        let result = plan([item("op", on: "2026-11-25")])
+        XCTAssertEqual(result.items(on: .wednesday).first?.sourceId, "op")
     }
 
     func testMostCommonPickupTimeIsTheDefaultAndOthersAreExceptions() {
@@ -96,11 +141,13 @@ final class WeekBuilderTests: XCTestCase {
     func testCalendarRowDecoding() throws {
         let json = """
         {"id":"\(UUID().uuidString)","title":"Klavier","note":null,"starts_on":"2026-11-06",
-         "at_time":"07:30:00","repeats_weekly":true,"assignee":null,"cash_cents":null}
+         "at_time":"07:30:00","weekdays":[1,5],"repeat_until":null,"skip_holidays":true,
+         "assignee":null,"cash_cents":null}
         """
         let row = try JSONDecoder().decode(CalendarItemRow.self, from: Data(json.utf8))
         let stored = try XCTUnwrap(row.makeItem(memberNames: [:]))
         XCTAssertEqual(stored.time, .at(7, 30))
-        XCTAssertTrue(stored.repeatsWeekly)
+        XCTAssertEqual(stored.weekdays, [.monday, .friday])
+        XCTAssertTrue(stored.skipHolidays)
     }
 }

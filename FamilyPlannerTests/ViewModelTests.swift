@@ -2,25 +2,42 @@ import XCTest
 @testable import FamilyPlanner
 
 private actor FailingSource: FamilyDataSource {
-    func loadTasks() async throws -> TaskBoard { throw URLError(.notConnectedToInternet) }
-    func setTaskStatus(id: String, status: TaskStatus) async throws { throw URLError(.notConnectedToInternet) }
-    func loadShoppingList() async throws -> ShoppingList { throw URLError(.notConnectedToInternet) }
-    func addShoppingItem(name: String) async throws -> ShoppingItem { throw URLError(.notConnectedToInternet) }
-    func setInBasket(id: String, inBasket: Bool) async throws { throw URLError(.notConnectedToInternet) }
-    func loadWeek(starting weekStart: Date) async throws -> WeekPlan { throw URLError(.notConnectedToInternet) }
-    func currentMemberName() async throws -> String? { throw URLError(.notConnectedToInternet) }
+    private let error = URLError(.notConnectedToInternet)
+    func loadTasks() async throws -> TaskBoard { throw error }
+    func setTaskStatus(id: String, status: TaskStatus) async throws { throw error }
+    func saveTask(_ draft: TaskDraft) async throws { throw error }
+    func deleteTask(id: String) async throws { throw error }
+    func loadShoppingList() async throws -> ShoppingList { throw error }
+    func addShoppingItem(name: String) async throws -> ShoppingItem { throw error }
+    func setInBasket(id: String, inBasket: Bool) async throws { throw error }
+    func loadCalendar() async throws -> CalendarData { throw error }
+    func saveCalendarItem(_ draft: CalendarItemDraft) async throws { throw error }
+    func deleteCalendarItem(id: String) async throws { throw error }
+    func setPickupTimes(_ times: [Weekday: TimeOfDay]) async throws { throw error }
+    func addHoliday(name: String, startsOn: String, endsOn: String) async throws { throw error }
+    func deleteHoliday(id: String) async throws { throw error }
+    func loadMembers() async throws -> [Member] { throw error }
+    func currentMemberName() async throws -> String? { throw error }
 }
 
 /// Loads fine but cannot save: used to check that optimistic changes are reverted.
 private actor ReadOnlySource: FamilyDataSource {
     private let demo = DemoDataSource()
-
+    private let error = URLError(.notConnectedToInternet)
     func loadTasks() async throws -> TaskBoard { try await demo.loadTasks() }
-    func setTaskStatus(id: String, status: TaskStatus) async throws { throw URLError(.notConnectedToInternet) }
+    func setTaskStatus(id: String, status: TaskStatus) async throws { throw error }
+    func saveTask(_ draft: TaskDraft) async throws { throw error }
+    func deleteTask(id: String) async throws { throw error }
     func loadShoppingList() async throws -> ShoppingList { try await demo.loadShoppingList() }
-    func addShoppingItem(name: String) async throws -> ShoppingItem { throw URLError(.notConnectedToInternet) }
-    func setInBasket(id: String, inBasket: Bool) async throws { throw URLError(.notConnectedToInternet) }
-    func loadWeek(starting weekStart: Date) async throws -> WeekPlan { try await demo.loadWeek(starting: weekStart) }
+    func addShoppingItem(name: String) async throws -> ShoppingItem { throw error }
+    func setInBasket(id: String, inBasket: Bool) async throws { throw error }
+    func loadCalendar() async throws -> CalendarData { try await demo.loadCalendar() }
+    func saveCalendarItem(_ draft: CalendarItemDraft) async throws { throw error }
+    func deleteCalendarItem(id: String) async throws { throw error }
+    func setPickupTimes(_ times: [Weekday: TimeOfDay]) async throws { throw error }
+    func addHoliday(name: String, startsOn: String, endsOn: String) async throws { throw error }
+    func deleteHoliday(id: String) async throws { throw error }
+    func loadMembers() async throws -> [Member] { try await demo.loadMembers() }
     func currentMemberName() async throws -> String? { nil }
 }
 
@@ -37,6 +54,52 @@ final class ViewModelTests: XCTestCase {
         let model = TasksViewModel(source: FailingSource())
         await model.load()
         XCTAssertEqual(model.errorMessage, "Aufgaben konnten nicht geladen werden.")
+    }
+
+    func testNewTaskIsSavedWithTrimmedTitleAndAssignee() async {
+        let model = TasksViewModel(source: DemoDataSource())
+        await model.load()
+        let before = model.board.tasks.count
+        let draft = TaskDraft(id: nil, title: " Müll raus ", assigneeId: "Sam", dueOn: "2026-11-28")
+        let saved = await model.save(draft)
+        XCTAssertTrue(saved)
+        XCTAssertEqual(model.board.tasks.count, before + 1)
+        let task = model.board.tasks.last
+        XCTAssertEqual(task?.title, "Müll raus")
+        XCTAssertEqual(task?.assignee, "Sam")
+        XCTAssertEqual(task?.due, "bis 28.11.")
+    }
+
+    func testEditingATaskKeepsItsStatus() async {
+        let model = TasksViewModel(source: DemoDataSource())
+        await model.load()
+        let saved = await model.save(TaskDraft(id: "cake", title: "Torte backen", assigneeId: nil, dueOn: nil))
+        XCTAssertTrue(saved)
+        let task = model.board.tasks.first { $0.id == "cake" }
+        XCTAssertEqual(task?.title, "Torte backen")
+        XCTAssertEqual(task?.status, .doing)
+        XCTAssertNil(task?.assignee)
+    }
+
+    func testDeletingATaskRemovesIt() async {
+        let model = TasksViewModel(source: DemoDataSource())
+        await model.load()
+        let deleted = await model.delete(id: "gift")
+        XCTAssertTrue(deleted)
+        XCTAssertNil(model.board.tasks.first { $0.id == "gift" })
+    }
+
+    func testFailedTaskSaveShowsMessage() async {
+        let model = TasksViewModel(source: ReadOnlySource())
+        let saved = await model.save(TaskDraft(id: nil, title: "Test", assigneeId: nil, dueOn: nil))
+        XCTAssertFalse(saved)
+        XCTAssertEqual(model.errorMessage, "Die Aufgabe konnte nicht gespeichert werden.")
+    }
+
+    func testBlankTaskTitleIsNotSaved() async {
+        let model = TasksViewModel(source: DemoDataSource())
+        let saved = await model.save(TaskDraft(id: nil, title: "  ", assigneeId: nil, dueOn: nil))
+        XCTAssertFalse(saved)
     }
 
     func testAdvanceIsSavedInSource() async throws {
@@ -133,6 +196,61 @@ final class WeekViewModelTests: XCTestCase {
         XCTAssertEqual(model.memberName, "Alex")
         XCTAssertFalse(model.plan.items(on: .friday).isEmpty)
         XCTAssertNil(model.errorMessage)
+    }
+
+    func testSavingAnItemReloadsThePlan() async {
+        let today = WeekBuilder.date(fromISO: "2026-11-24", calendar: WeekBuilder.calendar()) ?? Date()
+        let model = WeekViewModel(source: DemoDataSource(), now: today)
+        await model.load()
+        let before = model.plan.items(on: .sunday).count
+        let draft = CalendarItemDraft(
+            id: nil, title: " Radfahren ", note: "", startsOn: "2026-11-29", time: .at(10, 0),
+            weekdays: [], repeatUntil: nil, skipHolidays: false, assigneeId: "Alex", cashCents: nil
+        )
+        let saved = await model.save(draft)
+        XCTAssertTrue(saved)
+        XCTAssertEqual(model.plan.items(on: .sunday).count, before + 1)
+        XCTAssertEqual(model.plan.items(on: .sunday).last?.title, "Radfahren")
+        XCTAssertEqual(model.plan.items(on: .sunday).last?.assignee, "Alex")
+    }
+
+    func testBlankItemTitleIsNotSaved() async {
+        let model = WeekViewModel(source: DemoDataSource())
+        let draft = CalendarItemDraft(
+            id: nil, title: "  ", note: "", startsOn: "2026-11-29", time: .at(10, 0),
+            weekdays: [], repeatUntil: nil, skipHolidays: false, assigneeId: nil, cashCents: nil
+        )
+        let saved = await model.save(draft)
+        XCTAssertFalse(saved)
+    }
+
+    func testFailedSaveShowsMessageAndReturnsFalse() async {
+        let model = WeekViewModel(source: ReadOnlySource())
+        await model.load()
+        let draft = CalendarItemDraft(
+            id: nil, title: "Radfahren", note: "", startsOn: "2026-11-29", time: .at(10, 0),
+            weekdays: [], repeatUntil: nil, skipHolidays: false, assigneeId: nil, cashCents: nil
+        )
+        let saved = await model.save(draft)
+        XCTAssertFalse(saved)
+        XCTAssertEqual(model.errorMessage, "Der Termin konnte nicht gespeichert werden.")
+    }
+
+    func testHolidayRemovesPickupAfterAdding() async {
+        let today = WeekBuilder.date(fromISO: "2026-11-24", calendar: WeekBuilder.calendar()) ?? Date()
+        let model = WeekViewModel(source: DemoDataSource(), now: today)
+        await model.load()
+        XCTAssertNotNil(model.plan.pickup.time(on: .wednesday))
+        let added = await model.addHoliday(name: "Herbst", startsOn: "2026-11-25", endsOn: "2026-11-26")
+        XCTAssertTrue(added)
+        XCTAssertNil(model.plan.pickup.time(on: .wednesday))
+        XCTAssertEqual(model.plan.holidays[.wednesday], "Herbst")
+    }
+
+    func testHolidayEndingBeforeItStartsIsRejected() async {
+        let model = WeekViewModel(source: DemoDataSource())
+        let added = await model.addHoliday(name: "Herbst", startsOn: "2026-11-26", endsOn: "2026-11-25")
+        XCTAssertFalse(added)
     }
 
     func testLoadFailureShowsMessage() async {

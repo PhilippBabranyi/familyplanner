@@ -3,6 +3,7 @@ import SwiftUI
 /// Today: the items of the current day from the demo week.
 struct TodayView: View {
     @ObservedObject var model: WeekViewModel
+    @State private var editor: ItemEditorTarget?
 
     var body: some View {
         ScrollView {
@@ -23,6 +24,8 @@ struct TodayView: View {
 
                 ForEach(model.plan.items(on: model.todayWeekday)) { item in
                     WeekItemRow(item: item)
+                        .contentShape(Rectangle())
+                        .onTapGesture { edit(item) }
                 }
             }
             .padding(.horizontal, 20)
@@ -34,6 +37,17 @@ struct TodayView: View {
         .refreshable { await model.load() }
         .task { await model.load() }
         .accessibilityIdentifier("screen-today")
+        .addButton(identifier: "add-item") {
+            editor = ItemEditorTarget(item: nil, defaultDate: model.today)
+        }
+        .sheet(item: $editor) { target in
+            ItemFormSheet(model: model, target: target)
+        }
+    }
+
+    private func edit(_ item: WeekItem) {
+        guard let sourceId = item.sourceId, let stored = model.storedItem(id: sourceId) else { return }
+        editor = ItemEditorTarget(item: stored, defaultDate: model.today)
     }
 
     private var dateTitle: String {

@@ -5,7 +5,7 @@ enum DataSourceError: Error {
     case noFamily
 }
 
-/// Reads and writes the family's data. Row-level security in the database decides what is visible.
+/// Reads and writes the family's data. Row-level security in the database decides what is allowed.
 actor SupabaseDataSource: FamilyDataSource {
     private let client: SupabaseClient
     private var cachedFamilyId: UUID?
@@ -14,15 +14,14 @@ actor SupabaseDataSource: FamilyDataSource {
         self.client = client
     }
 
+    // MARK: Tasks
+
     func loadTasks() async throws -> TaskBoard {
         let rows: [TaskRow] = try await client.from("tasks")
             .select("id,title,assignee,due_on,status")
             .order("created_at")
             .execute().value
-        let members: [MemberRow] = try await client.from("family_members")
-            .select("family_id,user_id,display_name")
-            .execute().value
-        let names = Dictionary(uniqueKeysWithValues: members.map { ($0.userId, $0.displayName) })
+        let names = try await memberNames()
         return TaskBoard(tasks: rows.map { $0.makeItem(memberNames: names) })
     }
 
@@ -33,6 +32,25 @@ actor SupabaseDataSource: FamilyDataSource {
             "new_status": status.databaseValue
         ]).execute()
     }
+
+    func saveTask(_ draft: TaskDraft) async throws {
+        if let id = draft.id {
+            let write = TaskWrite(familyId: nil, title: draft.title, assignee: draft.assigneeId, dueOn: draft.dueOn)
+            try await client.from("tasks").update(write).eq("id", value: id).execute()
+        } else {
+            let write = TaskWrite(
+                familyId: try await familyId(), title: draft.title,
+                assignee: draft.assigneeId, dueOn: draft.dueOn
+            )
+            try await client.from("tasks").insert(write).execute()
+        }
+    }
+
+    func deleteTask(id: String) async throws {
+        try await client.from("tasks").delete().eq("id", value: id).execute()
+    }
+
+    // MARK: Shopping
 
     func loadShoppingList() async throws -> ShoppingList {
         let rows: [ShoppingItemRow] = try await client.from("shopping_items")
@@ -59,33 +77,86 @@ actor SupabaseDataSource: FamilyDataSource {
             .execute()
     }
 
-    func loadWeek(starting weekStart: Date) async throws -> WeekPlan {
+    // MARK: Calendar
+
+    func loadCalendar() async throws -> CalendarData {
         let rows: [CalendarItemRow] = try await client.from("calendar_items")
-            .select("id,title,note,starts_on,at_time,repeats_weekly,assignee,cash_cents")
+            .select("id,title,note,starts_on,at_time,weekdays,repeat_until,skip_holidays,assignee,cash_cents")
             .execute().value
         let pickupRows: [PickupRow] = try await client.from("pickup_times")
             .select("weekday,pickup_time")
             .execute().value
+        let holidayRows: [HolidayRow] = try await client.from("holidays")
+            .select("id,name,starts_on,ends_on")
+            .order("starts_on")
+            .execute().value
         let names = try await memberNames()
-        let items = rows.compactMap { $0.makeItem(memberNames: names) }
         var pickups: [Weekday: TimeOfDay] = [:]
         for row in pickupRows {
             if let day = Weekday(rawValue: row.weekday), let time = TimeOfDay(databaseValue: row.pickupTime) {
                 pickups[day] = time
             }
         }
-        return WeekBuilder.plan(
-            items: items,
+        return CalendarData(
+            items: rows.compactMap { $0.makeItem(memberNames: names) },
             pickups: pickups,
-            weekStart: weekStart,
-            calendar: WeekBuilder.calendar()
+            holidays: holidayRows.map { $0.makeHoliday() }
         )
+    }
+
+    func saveCalendarItem(_ draft: CalendarItemDraft) async throws {
+        if let id = draft.id {
+            try await client.from("calendar_items")
+                .update(CalendarItemWrite(familyId: nil, draft: draft))
+                .eq("id", value: id)
+                .execute()
+        } else {
+            try await client.from("calendar_items")
+                .insert(CalendarItemWrite(familyId: try await familyId(), draft: draft))
+                .execute()
+        }
+    }
+
+    func deleteCalendarItem(id: String) async throws {
+        try await client.from("calendar_items").delete().eq("id", value: id).execute()
+    }
+
+    func setPickupTimes(_ times: [Weekday: TimeOfDay]) async throws {
+        let familyId = try await familyId()
+        let rows = times.map {
+            PickupWrite(familyId: familyId, weekday: $0.key.rawValue, pickupTime: $0.value.databaseValue)
+        }
+        if !rows.isEmpty {
+            try await client.from("pickup_times").upsert(rows, onConflict: "family_id,weekday").execute()
+        }
+        for day in Weekday.allCases where times[day] == nil {
+            try await client.from("pickup_times").delete().eq("weekday", value: day.rawValue).execute()
+        }
+    }
+
+    func addHoliday(name: String, startsOn: String, endsOn: String) async throws {
+        let write = HolidayWrite(familyId: try await familyId(), name: name, startsOn: startsOn, endsOn: endsOn)
+        try await client.from("holidays").insert(write).execute()
+    }
+
+    func deleteHoliday(id: String) async throws {
+        try await client.from("holidays").delete().eq("id", value: id).execute()
+    }
+
+    // MARK: People
+
+    func loadMembers() async throws -> [Member] {
+        try await memberNames()
+            .map { Member(id: $0.key.uuidString, name: $0.value) }
+            .sorted { $0.name < $1.name }
     }
 
     func currentMemberName() async throws -> String? {
         let userId = try await client.auth.session.user.id
         return try await memberNames()[userId]
     }
+
+    // MARK: Helpers
 
     private func memberNames() async throws -> [UUID: String] {
         let members: [MemberRow] = try await client.from("family_members")

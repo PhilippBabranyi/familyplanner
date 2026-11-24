@@ -65,4 +65,41 @@ enum DemoData {
             ]
         ]
     )
+
+    static let members = [
+        Member(id: "Alex", name: "Alex"),
+        Member(id: "Sam", name: "Sam"),
+        Member(id: "Haushaltshilfe", name: "Haushaltshilfe")
+    ]
+
+    /// The demo week (23 to 29 November 2026) in the shape the database delivers it.
+    static let calendarData = CalendarData(
+        items: [
+            demoItem("mon-tax", "Steuerunterlagen sortieren", "2026-11-23", .at(20, 0), assignee: "Alex"),
+            demoItem("tue-dentist", "Zahnarzt anrufen", "2026-11-24", .at(10, 0), assignee: "Alex"),
+            demoItem("tue-cake", "Zutaten fürs Kuchenbacken", "2026-11-24", .at(13, 0), assignee: "Sam"),
+            demoItem("tue-helper", "Haushaltshilfe kommt", "2026-11-24", .at(16, 0),
+                     assignee: "Haushaltshilfe", cashCents: 4000),
+            demoItem("wed-library", "Library Day", "2026-11-25", .at(7, 30), note: "Buch mitnehmen"),
+            demoItem("thu-ballet", "Ballett", "2026-11-26", .at(15, 30), note: "Abholung erst um 16:20"),
+            demoItem("fri-piano", "Klavier", "2026-11-27", .at(7, 30), note: "Buch nicht vergessen"),
+            demoItem("fri-sitter", "Babysitter kommt", "2026-11-27", .at(19, 0), cashCents: 2000),
+            demoItem("sat-swim", "Schwimmen", "2026-11-28", .at(9, 30))
+        ],
+        pickups: [
+            .monday: .at(15, 20), .tuesday: .at(15, 20), .wednesday: .at(15, 20),
+            .thursday: .at(16, 20), .friday: .at(15, 20)
+        ],
+        holidays: []
+    )
+
+    private static func demoItem(
+        _ id: String, _ title: String, _ date: String, _ time: TimeOfDay,
+        note: String? = nil, assignee: String? = nil, cashCents: Int? = nil
+    ) -> StoredCalendarItem {
+        StoredCalendarItem(
+            id: id, title: title, note: note, startsOn: date, time: time,
+            assigneeId: assignee, assignee: assignee, cashCents: cashCents
+        )
+    }
 }
