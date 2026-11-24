@@ -10,12 +10,18 @@ settings:
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
+packages:
+  Supabase:
+    url: https://github.com/supabase/supabase-swift
+    from: 2.0.0
 targets:
   FamilyPlanner:
     type: application
     platform: iOS
     sources:
       - FamilyPlanner
+    dependencies:
+      - package: Supabase
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.example.familyplanner

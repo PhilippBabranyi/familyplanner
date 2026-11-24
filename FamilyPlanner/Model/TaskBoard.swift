@@ -32,8 +32,9 @@ enum TaskStatus: CaseIterable {
 struct TaskItem: Identifiable {
     let id: String
     var title: String
-    var owner: Person
-    /// Human-readable due date, e.g. "bis Fr". Real dates come with the backend.
+    /// Display name of the person the task is assigned to, nil if unassigned.
+    var assignee: String?
+    /// Human-readable due date, e.g. "bis 28.11." or "ohne Datum".
     var due: String
     var status: TaskStatus
 }

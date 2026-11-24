@@ -19,6 +19,8 @@ struct TodayView: View {
                         .foregroundStyle(Theme.text)
                 }
 
+                SampleDataChip()
+
                 ForEach(plan.items(on: today)) { item in
                     WeekItemRow(item: item)
                 }

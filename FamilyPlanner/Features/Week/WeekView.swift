@@ -18,6 +18,8 @@ struct WeekView: View {
                         .foregroundStyle(Theme.text)
                 }
 
+                SampleDataChip()
+
                 dayPicker
 
                 if let pickup = plan.pickup.time(on: selectedDay) {

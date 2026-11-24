@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Tasks in three states. Tapping a card's button moves it to the next state.
 struct TasksView: View {
-    @State private var board = DemoData.taskBoard
+    @ObservedObject var model: TasksViewModel
     @State private var filter: TaskStatus = .open
 
     var body: some View {
@@ -12,13 +12,17 @@ struct TasksView: View {
                     .font(Theme.display(36))
                     .foregroundStyle(Theme.text)
 
-                statusPicker
-
-                ForEach(board.tasks(in: filter)) { task in
-                    TaskCard(task: task) { board.advance(task.id) }
+                if let message = model.errorMessage {
+                    ErrorBanner(message: message)
                 }
 
-                if board.tasks(in: filter).isEmpty {
+                statusPicker
+
+                ForEach(model.board.tasks(in: filter)) { task in
+                    TaskCard(task: task) { Task { await model.advance(task.id) } }
+                }
+
+                if model.board.tasks(in: filter).isEmpty && !model.isLoading {
                     Text("Hier ist nichts mehr offen.")
                         .font(.system(size: 15))
                         .foregroundStyle(Theme.muted)
@@ -31,6 +35,8 @@ struct TasksView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollIndicators(.hidden)
+        .refreshable { await model.load() }
+        .task { await model.load() }
     }
 
     private var statusPicker: some View {
@@ -40,7 +46,7 @@ struct TasksView: View {
                 Button {
                     filter = status
                 } label: {
-                    Text("\(status.title) \(board.count(in: status))")
+                    Text("\(status.title) \(model.board.count(in: status))")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(isSelected ? Theme.text : Theme.muted)
                         .frame(maxWidth: .infinity, minHeight: 48)
@@ -84,15 +90,13 @@ private struct TaskCard: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
-        .background(task.owner.color, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .background(
+            AssigneePalette.color(for: task.assignee),
+            in: RoundedRectangle(cornerRadius: 30, style: .continuous)
+        )
     }
 
     private var personName: String {
-        switch task.owner {
-        case .alex: return "Alex"
-        case .sam: return "Sam"
-        case .helper: return "Haushaltshilfe"
-        case .everyone: return "Alle"
-        }
+        task.assignee ?? "Niemand"
     }
 }
