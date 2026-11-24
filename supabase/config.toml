@@ -1,0 +1,7 @@
+# Supabase CLI configuration for local development and CI.
+# The real project lives in the Supabase dashboard; nothing secret belongs in this file.
+project_id = "familyplanner"
+
+[db]
+port = 54322
+major_version = 17
