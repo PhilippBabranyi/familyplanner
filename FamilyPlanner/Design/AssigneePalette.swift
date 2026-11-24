@@ -31,15 +31,3 @@ struct ErrorBanner: View {
             .accessibilityIdentifier("error-banner")
     }
 }
-
-/// Marks screens that still show invented example data instead of the family's real data.
-struct SampleDataChip: View {
-    var body: some View {
-        Text("Beispieldaten")
-            .font(.system(size: 12, weight: .bold))
-            .foregroundStyle(Theme.text)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 5)
-            .background(Theme.butter, in: Capsule())
-    }
-}

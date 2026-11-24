@@ -1,16 +1,5 @@
 import SwiftUI
 
-extension Person {
-    var color: Color {
-        switch self {
-        case .alex: return Theme.peach
-        case .sam: return Theme.blue
-        case .helper: return Theme.sage
-        case .everyone: return Theme.surfaceAlt
-        }
-    }
-}
-
 /// Formats cents as euros, e.g. 4000 -> "40 €".
 func formattedEuros(cents: Int) -> String {
     cents % 100 == 0 ? "\(cents / 100) €" : String(format: "%.2f €", Double(cents) / 100)
@@ -46,11 +35,11 @@ struct WeekItemRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text(item.owner.initial)
+            Text(item.assignee.map { String($0.prefix(1)).uppercased() } ?? "F")
                 .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(Theme.text)
                 .frame(width: 30, height: 30)
-                .background(item.owner.color, in: Circle())
+                .background(AssigneePalette.color(for: item.assignee), in: Circle())
         }
         .padding(.leading, 18)
         .padding(.trailing, 14)

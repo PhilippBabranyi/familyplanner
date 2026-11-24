@@ -59,6 +59,41 @@ actor SupabaseDataSource: FamilyDataSource {
             .execute()
     }
 
+    func loadWeek(starting weekStart: Date) async throws -> WeekPlan {
+        let rows: [CalendarItemRow] = try await client.from("calendar_items")
+            .select("id,title,note,starts_on,at_time,repeats_weekly,assignee,cash_cents")
+            .execute().value
+        let pickupRows: [PickupRow] = try await client.from("pickup_times")
+            .select("weekday,pickup_time")
+            .execute().value
+        let names = try await memberNames()
+        let items = rows.compactMap { $0.makeItem(memberNames: names) }
+        var pickups: [Weekday: TimeOfDay] = [:]
+        for row in pickupRows {
+            if let day = Weekday(rawValue: row.weekday), let time = TimeOfDay(databaseValue: row.pickupTime) {
+                pickups[day] = time
+            }
+        }
+        return WeekBuilder.plan(
+            items: items,
+            pickups: pickups,
+            weekStart: weekStart,
+            calendar: WeekBuilder.calendar()
+        )
+    }
+
+    func currentMemberName() async throws -> String? {
+        let userId = try await client.auth.session.user.id
+        return try await memberNames()[userId]
+    }
+
+    private func memberNames() async throws -> [UUID: String] {
+        let members: [MemberRow] = try await client.from("family_members")
+            .select("family_id,user_id,display_name")
+            .execute().value
+        return Dictionary(uniqueKeysWithValues: members.map { ($0.userId, $0.displayName) })
+    }
+
     private func familyId() async throws -> UUID {
         if let cachedFamilyId { return cachedFamilyId }
         let members: [MemberRow] = try await client.from("family_members")

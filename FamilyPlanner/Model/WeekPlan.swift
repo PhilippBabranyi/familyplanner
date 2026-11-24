@@ -1,20 +1,3 @@
-/// People shown in the app. Real names live in the backend, never in this repository.
-enum Person: String, CaseIterable {
-    case alex
-    case sam
-    case helper
-    case everyone
-
-    var initial: String {
-        switch self {
-        case .alex: return "A"
-        case .sam: return "S"
-        case .helper: return "H"
-        case .everyone: return "F"
-        }
-    }
-}
-
 /// Optional label on a week item.
 enum ItemTag: Equatable {
     case homeAssistant
@@ -27,7 +10,8 @@ struct WeekItem: Identifiable {
     let time: TimeOfDay
     let title: String
     var note: String?
-    var owner: Person = .everyone
+    /// Display name of the person the item is for, nil if it is for everyone.
+    var assignee: String?
     var tag: ItemTag?
 }
 
