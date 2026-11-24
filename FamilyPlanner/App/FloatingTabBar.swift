@@ -20,7 +20,7 @@ struct FloatingTabBar: View {
     }
 
     private func button(for route: Route) -> some View {
-        let isSelected = route == selection
+        let isSelected = route == selection.tab
         return Button {
             selection = route
         } label: {

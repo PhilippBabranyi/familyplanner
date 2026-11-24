@@ -27,6 +27,19 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Zahnarzt anrufen"].waitForExistence(timeout: 5))
         capture("04-today")
 
+        app.buttons["tab-tasks"].tap()
+        XCTAssertTrue(app.buttons["advance-gift"].waitForExistence(timeout: 5))
+        app.buttons["advance-gift"].tap()
+        XCTAssertTrue(app.buttons["status-Läuft"].waitForExistence(timeout: 5))
+        capture("05-tasks")
+
+        app.buttons["tab-more"].tap()
+        XCTAssertTrue(app.buttons["open-shopping"].waitForExistence(timeout: 5))
+        app.buttons["open-shopping"].tap()
+        XCTAssertTrue(app.buttons["item-tomatoes"].waitForExistence(timeout: 5))
+        app.buttons["item-tomatoes"].tap()
+        capture("06-shopping")
+
         app.buttons["tab-more"].tap()
         XCTAssertTrue(app.buttons["open-start"].waitForExistence(timeout: 5))
         app.buttons["open-start"].tap()

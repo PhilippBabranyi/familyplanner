@@ -5,9 +5,13 @@ enum Route: String, CaseIterable, Identifiable {
     case week
     case ask
     case tasks
+    case shopping
     case more
 
     var id: String { rawValue }
+
+    /// The tab that is highlighted while this destination is shown (Einkauf lives under "Mehr").
+    var tab: Route { self == .shopping ? .more : self }
 
     /// Destinations shown in the floating tab bar (the start screen is not one of them).
     static let tabs: [Route] = [.today, .week, .ask, .tasks, .more]
@@ -19,6 +23,7 @@ enum Route: String, CaseIterable, Identifiable {
         case .week: return "Woche"
         case .ask: return "Fragen"
         case .tasks: return "Aufgaben"
+        case .shopping: return "Einkauf"
         case .more: return "Mehr"
         }
     }
@@ -30,6 +35,7 @@ enum Route: String, CaseIterable, Identifiable {
         case .week: return "calendar"
         case .ask: return "magnifyingglass"
         case .tasks: return "checkmark.square"
+        case .shopping: return "cart"
         case .more: return "ellipsis"
         }
     }
