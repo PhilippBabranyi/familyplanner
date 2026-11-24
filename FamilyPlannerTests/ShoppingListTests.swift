@@ -20,9 +20,8 @@ final class ShoppingListTests: XCTestCase {
 
     func testEmptyGroupsDisappear() {
         var list = DemoData.shoppingList
+        XCTAssertTrue(list.sections.map(\.title).contains("Haushalt"))
         list.toggle("soap")
-        XCTAssertFalse(list.sections.map(\.title).contains("Haushalt") && list.items
-            .filter { $0.group == .household && !$0.isInBasket }.isEmpty)
         XCTAssertFalse(list.sections.map(\.title).contains("Haushalt"))
     }
 
