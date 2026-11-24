@@ -35,7 +35,7 @@ actor SupabaseDataSource: FamilyDataSource {
     }
 
     func loadShoppingList() async throws -> ShoppingList {
-        let rows: [ShoppingRow] = try await client.from("shopping_items")
+        let rows: [ShoppingItemRow] = try await client.from("shopping_items")
             .select("id,name,quantity,category,in_basket,label")
             .order("created_at")
             .execute().value
@@ -44,7 +44,7 @@ actor SupabaseDataSource: FamilyDataSource {
 
     func addShoppingItem(name: String) async throws -> ShoppingItem {
         let familyId = try await familyId()
-        let row: ShoppingRow = try await client.from("shopping_items")
+        let row: ShoppingItemRow = try await client.from("shopping_items")
             .insert(NewShoppingRow(familyId: familyId, name: name))
             .select("id,name,quantity,category,in_basket,label")
             .single()

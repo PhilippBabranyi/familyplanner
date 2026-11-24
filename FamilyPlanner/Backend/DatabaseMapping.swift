@@ -67,7 +67,7 @@ struct MemberRow: Decodable {
     }
 }
 
-struct ShoppingRow: Decodable {
+struct ShoppingItemRow: Decodable {
     let id: UUID
     let name: String
     let quantity: String
@@ -103,7 +103,7 @@ extension TaskRow {
     }
 }
 
-extension ShoppingRow {
+extension ShoppingItemRow {
     func makeItem() -> ShoppingItem {
         ShoppingItem(
             id: id.uuidString,
