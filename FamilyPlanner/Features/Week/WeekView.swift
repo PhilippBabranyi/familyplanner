@@ -2,14 +2,17 @@ import SwiftUI
 
 /// Week overview: pick a day, see pickup time and items.
 struct WeekView: View {
-    @State private var selectedDay: Weekday = .tuesday
-    private let plan = DemoData.weekPlan
+    @ObservedObject var model: WeekViewModel
+    @State private var selectedDay: Weekday?
+
+    private var day: Weekday { selectedDay ?? model.todayWeekday }
+    private var plan: WeekPlan { model.plan }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("23.–29. NOVEMBER")
+                    Text(rangeTitle)
                         .font(.system(size: 12, weight: .semibold))
                         .tracking(1.2)
                         .foregroundStyle(Theme.muted)
@@ -18,15 +21,17 @@ struct WeekView: View {
                         .foregroundStyle(Theme.text)
                 }
 
-                SampleDataChip()
+                if let message = model.errorMessage {
+                    ErrorBanner(message: message)
+                }
 
                 dayPicker
 
-                if let pickup = plan.pickup.time(on: selectedDay) {
-                    pickupCard(time: pickup, isException: plan.pickup.isException(on: selectedDay))
+                if let pickup = plan.pickup.time(on: day) {
+                    pickupCard(time: pickup, isException: plan.pickup.isException(on: day))
                 }
 
-                ForEach(plan.items(on: selectedDay)) { item in
+                ForEach(plan.items(on: day)) { item in
                     WeekItemRow(item: item)
                 }
             }
@@ -36,23 +41,35 @@ struct WeekView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollIndicators(.hidden)
+        .refreshable { await model.load() }
+        .task { await model.load() }
         .accessibilityIdentifier("screen-week")
+    }
+
+    private var rangeTitle: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "de_DE")
+        formatter.dateFormat = "d. MMMM"
+        let calendar = WeekBuilder.calendar()
+        let first = calendar.component(.day, from: model.weekStart)
+        let last = formatter.string(from: model.date(of: .sunday))
+        return "\(first).–\(last)".uppercased()
     }
 
     private var dayPicker: some View {
         HStack(spacing: 6) {
-            ForEach(Weekday.allCases) { day in
-                let isSelected = day == selectedDay
+            ForEach(Weekday.allCases) { weekday in
+                let isSelected = weekday == day
                 Button {
-                    selectedDay = day
+                    selectedDay = weekday
                 } label: {
                     VStack(spacing: 2) {
-                        Text(day.shortName)
+                        Text(weekday.shortName)
                             .font(.system(size: 12, weight: .semibold))
-                        Text("\(DemoData.dayNumber(day))")
+                        Text("\(model.dayNumber(weekday))")
                             .font(Theme.display(19))
                         Circle()
-                            .fill(plan.pickup.isException(on: day) ? Color(hex: 0xC98F6B) : Color.clear)
+                            .fill(plan.pickup.isException(on: weekday) ? Color(hex: 0xC98F6B) : Color.clear)
                             .frame(width: 6, height: 6)
                     }
                     .foregroundStyle(isSelected ? Theme.surface : Theme.text)
@@ -60,8 +77,8 @@ struct WeekView: View {
                     .background(isSelected ? Theme.accent : Theme.surface, in: Capsule())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(day.longName)
-                .accessibilityIdentifier("day-\(day.shortName)")
+                .accessibilityLabel(weekday.longName)
+                .accessibilityIdentifier("day-\(weekday.shortName)")
             }
         }
     }

@@ -2,26 +2,26 @@ import SwiftUI
 
 /// Today: the items of the current day from the demo week.
 struct TodayView: View {
-    /// Tuesday, 24 November 2026 in the demo data.
-    private let today = Weekday.tuesday
-    private let plan = DemoData.weekPlan
+    @ObservedObject var model: WeekViewModel
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("DIENSTAG · 24. NOVEMBER")
+                    Text(dateTitle)
                         .font(.system(size: 12, weight: .semibold))
                         .tracking(1.2)
                         .foregroundStyle(Theme.muted)
-                    Text("Guten Morgen,\nAlex")
+                    Text(greeting)
                         .font(Theme.display(32))
                         .foregroundStyle(Theme.text)
                 }
 
-                SampleDataChip()
+                if let message = model.errorMessage {
+                    ErrorBanner(message: message)
+                }
 
-                ForEach(plan.items(on: today)) { item in
+                ForEach(model.plan.items(on: model.todayWeekday)) { item in
                     WeekItemRow(item: item)
                 }
             }
@@ -31,6 +31,20 @@ struct TodayView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollIndicators(.hidden)
+        .refreshable { await model.load() }
+        .task { await model.load() }
         .accessibilityIdentifier("screen-today")
+    }
+
+    private var dateTitle: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "de_DE")
+        formatter.dateFormat = "EEEE · d. MMMM"
+        return formatter.string(from: model.today).uppercased()
+    }
+
+    private var greeting: String {
+        if let name = model.memberName { return "Guten Tag,\n\(name)" }
+        return "Guten Tag"
     }
 }

@@ -7,6 +7,8 @@ private actor FailingSource: FamilyDataSource {
     func loadShoppingList() async throws -> ShoppingList { throw URLError(.notConnectedToInternet) }
     func addShoppingItem(name: String) async throws -> ShoppingItem { throw URLError(.notConnectedToInternet) }
     func setInBasket(id: String, inBasket: Bool) async throws { throw URLError(.notConnectedToInternet) }
+    func loadWeek(starting weekStart: Date) async throws -> WeekPlan { throw URLError(.notConnectedToInternet) }
+    func currentMemberName() async throws -> String? { throw URLError(.notConnectedToInternet) }
 }
 
 /// Loads fine but cannot save: used to check that optimistic changes are reverted.
@@ -18,6 +20,8 @@ private actor ReadOnlySource: FamilyDataSource {
     func loadShoppingList() async throws -> ShoppingList { try await demo.loadShoppingList() }
     func addShoppingItem(name: String) async throws -> ShoppingItem { throw URLError(.notConnectedToInternet) }
     func setInBasket(id: String, inBasket: Bool) async throws { throw URLError(.notConnectedToInternet) }
+    func loadWeek(starting weekStart: Date) async throws -> WeekPlan { try await demo.loadWeek(starting: weekStart) }
+    func currentMemberName() async throws -> String? { nil }
 }
 
 @MainActor
@@ -118,5 +122,30 @@ final class DatabaseMappingTests: XCTestCase {
     func testAssigneeColourIsStableAndUnassignedHasOwnColour() {
         XCTAssertEqual(AssigneePalette.index(for: "Alex"), AssigneePalette.index(for: "Alex"))
         XCTAssertLessThan(AssigneePalette.index(for: "Sam"), AssigneePalette.colors.count)
+    }
+}
+
+@MainActor
+final class WeekViewModelTests: XCTestCase {
+    func testLoadsPlanAndMemberName() async {
+        let model = WeekViewModel(source: DemoDataSource())
+        await model.load()
+        XCTAssertEqual(model.memberName, "Alex")
+        XCTAssertFalse(model.plan.items(on: .friday).isEmpty)
+        XCTAssertNil(model.errorMessage)
+    }
+
+    func testLoadFailureShowsMessage() async {
+        let model = WeekViewModel(source: FailingSource())
+        await model.load()
+        XCTAssertEqual(model.errorMessage, "Der Wochenplan konnte nicht geladen werden.")
+    }
+
+    func testDayNumbersFollowTheWeekOfToday() {
+        let today = WeekBuilder.date(fromISO: "2026-11-24", calendar: WeekBuilder.calendar()) ?? Date()
+        let model = WeekViewModel(source: DemoDataSource(), now: today)
+        XCTAssertEqual(model.todayWeekday, .tuesday)
+        XCTAssertEqual(model.dayNumber(.monday), 23)
+        XCTAssertEqual(model.dayNumber(.sunday), 29)
     }
 }

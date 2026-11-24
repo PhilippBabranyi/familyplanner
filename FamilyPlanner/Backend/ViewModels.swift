@@ -83,3 +83,46 @@ final class ShoppingViewModel: ObservableObject {
         }
     }
 }
+
+@MainActor
+final class WeekViewModel: ObservableObject {
+    @Published private(set) var plan = WeekPlan(
+        pickup: PickupSchedule(pickupDays: [], defaultTime: .at(15, 0), exceptions: [:]),
+        itemsByDay: [:]
+    )
+    @Published private(set) var memberName: String?
+    @Published private(set) var errorMessage: String?
+
+    let weekStart: Date
+    let today: Date
+    private let source: FamilyDataSource
+    private let calendar = WeekBuilder.calendar()
+
+    init(source: FamilyDataSource, now: Date = Date()) {
+        self.source = source
+        self.today = now
+        self.weekStart = WeekBuilder.weekStart(containing: now, calendar: WeekBuilder.calendar())
+    }
+
+    var todayWeekday: Weekday {
+        WeekBuilder.weekday(of: today, calendar: calendar)
+    }
+
+    func date(of day: Weekday) -> Date {
+        WeekBuilder.date(of: day, weekStart: weekStart, calendar: calendar)
+    }
+
+    func dayNumber(_ day: Weekday) -> Int {
+        calendar.component(.day, from: date(of: day))
+    }
+
+    func load() async {
+        do {
+            plan = try await source.loadWeek(starting: weekStart)
+            memberName = try await source.currentMemberName()
+            errorMessage = nil
+        } catch {
+            errorMessage = "Der Wochenplan konnte nicht geladen werden."
+        }
+    }
+}

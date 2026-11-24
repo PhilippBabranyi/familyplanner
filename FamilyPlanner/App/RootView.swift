@@ -5,6 +5,7 @@ struct RootView: View {
     let dataSource: FamilyDataSource
     @StateObject private var tasks: TasksViewModel
     @StateObject private var shopping: ShoppingViewModel
+    @StateObject private var week: WeekViewModel
     @State private var route: Route = .start
 
     init(auth: AuthModel, dataSource: FamilyDataSource) {
@@ -12,6 +13,7 @@ struct RootView: View {
         self.dataSource = dataSource
         _tasks = StateObject(wrappedValue: TasksViewModel(source: dataSource))
         _shopping = StateObject(wrappedValue: ShoppingViewModel(source: dataSource))
+        _week = StateObject(wrappedValue: WeekViewModel(source: dataSource))
     }
 
     var body: some View {
@@ -46,9 +48,9 @@ struct RootView: View {
         case .start:
             StartView { route = $0 }
         case .today:
-            TodayView()
+            TodayView(model: week)
         case .week:
-            WeekView()
+            WeekView(model: week)
         case .ask:
             PlaceholderView(title: "Frag die Familie", message: "Hier entsteht das Familiengedächtnis.")
         case .tasks:

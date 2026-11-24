@@ -115,3 +115,46 @@ extension ShoppingItemRow {
         )
     }
 }
+
+struct CalendarItemRow: Decodable {
+    let id: UUID
+    let title: String
+    let note: String?
+    let startsOn: String
+    let atTime: String
+    let repeatsWeekly: Bool
+    let assignee: UUID?
+    let cashCents: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, note, assignee
+        case startsOn = "starts_on"
+        case atTime = "at_time"
+        case repeatsWeekly = "repeats_weekly"
+        case cashCents = "cash_cents"
+    }
+
+    func makeItem(memberNames: [UUID: String]) -> StoredCalendarItem? {
+        guard let time = TimeOfDay(databaseValue: atTime) else { return nil }
+        return StoredCalendarItem(
+            id: id.uuidString,
+            title: title,
+            note: note,
+            startsOn: startsOn,
+            time: time,
+            repeatsWeekly: repeatsWeekly,
+            assignee: assignee.flatMap { memberNames[$0] },
+            cashCents: cashCents
+        )
+    }
+}
+
+struct PickupRow: Decodable {
+    let weekday: Int
+    let pickupTime: String
+
+    enum CodingKeys: String, CodingKey {
+        case weekday
+        case pickupTime = "pickup_time"
+    }
+}

@@ -1,12 +1,5 @@
 /// Invented sample data. Real family data is never stored in this repository.
 enum DemoData {
-    /// Day-of-month of the Monday of the demo week (23 November 2026).
-    static let weekStartDay = 23
-
-    static func dayNumber(_ day: Weekday) -> Int {
-        weekStartDay + day.rawValue - 1
-    }
-
     static let taskBoard = TaskBoard(tasks: [
         TaskItem(id: "gift", title: "Geschenk für Oma besorgen", assignee: "Alex", due: "bis Fr", status: .open),
         TaskItem(id: "dentist", title: "Zahnarzt-Termin ausmachen", assignee: "Alex", due: "heute", status: .open),
@@ -37,13 +30,13 @@ enum DemoData {
         itemsByDay: [
             .monday: [
                 WeekItem(id: "mon-tax", time: .at(20, 0), title: "Steuerunterlagen sortieren",
-                         note: "Frist rückt näher", owner: .alex)
+                         note: "Frist rückt näher", assignee: "Alex")
             ],
             .tuesday: [
-                WeekItem(id: "tue-dentist", time: .at(10, 0), title: "Zahnarzt anrufen", owner: .alex),
-                WeekItem(id: "tue-cake", time: .at(13, 0), title: "Zutaten fürs Kuchenbacken", owner: .sam),
+                WeekItem(id: "tue-dentist", time: .at(10, 0), title: "Zahnarzt anrufen", assignee: "Alex"),
+                WeekItem(id: "tue-cake", time: .at(13, 0), title: "Zutaten fürs Kuchenbacken", assignee: "Sam"),
                 WeekItem(id: "tue-helper", time: .at(16, 0), title: "Haushaltshilfe kommt",
-                         owner: .helper, tag: .cash(cents: 4000))
+                         assignee: "Haushaltshilfe", tag: .cash(cents: 4000))
             ],
             .wednesday: [
                 WeekItem(id: "wed-library", time: .at(7, 30), title: "Library Day", note: "Buch mitnehmen"),
@@ -56,7 +49,7 @@ enum DemoData {
             .friday: [
                 WeekItem(id: "fri-piano", time: .at(7, 30), title: "Klavier", note: "Buch nicht vergessen"),
                 WeekItem(id: "fri-gift", time: .at(12, 0), title: "Geschenk für Oma besorgen",
-                         note: "Frist: heute", owner: .alex),
+                         note: "Frist: heute", assignee: "Alex"),
                 WeekItem(id: "fri-sitter", time: .at(19, 0), title: "Babysitter kommt",
                          tag: .cash(cents: 2000))
             ],
