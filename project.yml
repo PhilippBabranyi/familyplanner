@@ -1,7 +1,7 @@
 name: FamilyPlanner
 options:
   # Placeholder prefix. The real bundle identifier is chosen once the Apple Developer account exists.
-  bundleIdPrefix: dev.example
+  bundleIdPrefix: de.babranyi
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
@@ -24,7 +24,7 @@ targets:
       - package: Supabase
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: dev.example.familyplanner
+        PRODUCT_BUNDLE_IDENTIFIER: de.babranyi.familyplanner
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Familienplaner
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
@@ -40,7 +40,7 @@ targets:
       - target: FamilyPlanner
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: dev.example.familyplanner.tests
+        PRODUCT_BUNDLE_IDENTIFIER: de.babranyi.familyplanner.tests
         GENERATE_INFOPLIST_FILE: YES
   FamilyPlannerUITests:
     type: bundle.ui-testing
@@ -51,7 +51,7 @@ targets:
       - target: FamilyPlanner
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: dev.example.familyplanner.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: de.babranyi.familyplanner.uitests
         GENERATE_INFOPLIST_FILE: YES
 schemes:
   FamilyPlanner:
