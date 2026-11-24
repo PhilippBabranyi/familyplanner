@@ -27,7 +27,9 @@ struct RootView: View {
         case .ask:
             PlaceholderView(title: "Frag die Familie", message: "Hier entsteht das Familiengedächtnis.")
         case .tasks:
-            PlaceholderView(title: "Aufgaben", message: "Kommt als Nächstes.")
+            TasksView()
+        case .shopping:
+            ShoppingView()
         case .more:
             MoreView { route = $0 }
         }

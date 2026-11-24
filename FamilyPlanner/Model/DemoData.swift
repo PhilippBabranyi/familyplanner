@@ -7,6 +7,27 @@ enum DemoData {
         weekStartDay + day.rawValue - 1
     }
 
+    static let taskBoard = TaskBoard(tasks: [
+        TaskItem(id: "gift", title: "Geschenk für Oma besorgen", owner: .alex, due: "bis Fr", status: .open),
+        TaskItem(id: "dentist", title: "Zahnarzt-Termin ausmachen", owner: .alex, due: "heute", status: .open),
+        TaskItem(id: "windows", title: "Fenster putzen", owner: .helper, due: "Do", status: .open),
+        TaskItem(id: "cake", title: "Kuchen backen", owner: .sam, due: "Fr", status: .doing),
+        TaskItem(id: "tax", title: "Steuerunterlagen sortieren", owner: .alex, due: "ohne Datum", status: .doing),
+        TaskItem(id: "flowers", title: "Blumen kaufen", owner: .sam, due: "erledigt", status: .done),
+        TaskItem(id: "card", title: "Karte schreiben", owner: .alex, due: "erledigt", status: .done)
+    ])
+
+    static let shoppingList = ShoppingList(items: [
+        ShoppingItem(id: "tomatoes", name: "Tomaten", quantity: "500 g", group: .produce),
+        ShoppingItem(id: "apples", name: "Äpfel", quantity: "6 Stück", group: .produce),
+        ShoppingItem(id: "flour", name: "Mehl", quantity: "1 kg", group: .baking,
+                     isInBasket: true, label: "Omas Kuchen"),
+        ShoppingItem(id: "butter", name: "Butter", quantity: "250 g", group: .baking, label: "Omas Kuchen"),
+        ShoppingItem(id: "eggs", name: "Eier", quantity: "6 Stück", group: .baking, label: "Omas Kuchen"),
+        ShoppingItem(id: "soap", name: "Spülmittel", group: .household),
+        ShoppingItem(id: "oatmilk", name: "Hafermilch", quantity: "2 l", group: .household, isInBasket: true)
+    ])
+
     static let weekPlan = WeekPlan(
         pickup: PickupSchedule(
             pickupDays: [.monday, .tuesday, .wednesday, .thursday, .friday],
