@@ -90,7 +90,10 @@ private struct TaskCard: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
-        .background(AssigneePalette.color(for: task.assignee), in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .background(
+            AssigneePalette.color(for: task.assignee),
+            in: RoundedRectangle(cornerRadius: 30, style: .continuous)
+        )
     }
 
     private var personName: String {
