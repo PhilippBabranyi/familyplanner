@@ -91,3 +91,5 @@ revoke all on public.mailboxes, public.mail_filters, public.inbox_items from ano
 grant select (id, family_id, owner_id, label, last_seen_at, created_at) on public.mailboxes to authenticated;
 grant select, insert, update, delete on public.mail_filters to authenticated;
 grant select, delete on public.inbox_items to authenticated;
+-- The mail-intake Edge Function runs as service_role (bypasses RLS, but still needs table grants).
+grant select, insert, update, delete on public.mailboxes, public.mail_filters, public.inbox_items to service_role;
