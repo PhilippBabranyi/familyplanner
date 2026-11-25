@@ -96,14 +96,14 @@ function findPart_(part, mimeType) {
   return null;
 }
 
-/** Gmail sends base64url without padding. Convert to standard base64, pad, decode. Unreadable parts give ''. */
+/** The Gmail service returns the text as a byte list; a base64 string is handled as a fallback. */
 function decode_(part) {
   try {
-    var data = String(part.body.data).replace(/-/g, '+').replace(/_/g, '/').replace(/[^A-Za-z0-9+\/]/g, '');
-    while (data.length % 4 !== 0) {
-      data += '=';
-    }
-    return Utilities.newBlob(Utilities.base64Decode(data)).getDataAsString('UTF-8');
+    var data = part.body.data;
+    var bytes = typeof data === 'string'
+      ? Utilities.base64DecodeWebSafe(data + '===='.slice(data.length % 4 || 4))
+      : data;
+    return Utilities.newBlob(bytes).getDataAsString('UTF-8');
   } catch (error) {
     console.error('Mailtext konnte nicht gelesen werden: ' + error);
     return '';
