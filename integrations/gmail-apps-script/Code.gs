@@ -96,15 +96,16 @@ function findPart_(part, mimeType) {
   return null;
 }
 
-/** Gmail sends base64url without padding; Apps Script needs the "=" padding. Unreadable parts give ''. */
+/** Gmail sends base64url without padding. Convert to standard base64, pad, decode. Unreadable parts give ''. */
 function decode_(part) {
   try {
-    var data = String(part.body.data);
+    var data = String(part.body.data).replace(/-/g, '+').replace(/_/g, '/').replace(/[^A-Za-z0-9+\/]/g, '');
     while (data.length % 4 !== 0) {
       data += '=';
     }
-    return Utilities.newBlob(Utilities.base64DecodeWebSafe(data)).getDataAsString('UTF-8');
+    return Utilities.newBlob(Utilities.base64Decode(data)).getDataAsString('UTF-8');
   } catch (error) {
+    console.error('Mailtext konnte nicht gelesen werden: ' + error);
     return '';
   }
 }
