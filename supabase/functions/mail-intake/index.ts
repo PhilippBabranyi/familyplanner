@@ -7,6 +7,12 @@
 // Deploy with "Verify JWT" switched OFF (the script is not a Supabase user); the token is the credential.
 // The function uses the service role key that Supabase provides to every Edge Function at runtime.
 // Nothing secret is stored in this file.
+//
+// For every new mail the function asks an AI model (analyze.ts) for a suggestion (event or task). The mail
+// text is only passed to the model; the database stores the suggestion, sender, subject and a link.
+// The key for the model is the Supabase secret ANTHROPIC_API_KEY.
+
+import { type Analyzer, createAnthropicAnalyzer, type Suggestion } from "./analyze.ts";
 
 export interface IntakeItem {
   gmailMessageId: string;
@@ -15,6 +21,8 @@ export interface IntakeItem {
   subject: string;
   receivedAt: string;
   link: string;
+  /** Mail text for the analysis only. Never stored. */
+  body: string;
 }
 
 export interface Mailbox {
@@ -32,11 +40,29 @@ export interface Store {
   findMailboxByHash(hash: string): Promise<Mailbox | null>;
   touch(mailboxId: string): Promise<void>;
   loadFilters(mailboxId: string): Promise<Filters>;
-  saveItems(mailbox: Mailbox, items: IntakeItem[]): Promise<number>;
+  /** Returns the ids of the given Gmail messages that are already saved for this mailbox. */
+  knownMessageIds(mailboxId: string, ids: string[]): Promise<Set<string>>;
+  loadContext(familyId: string): Promise<string>;
+  saveItems(mailbox: Mailbox, items: AnalyzedItem[]): Promise<number>;
 }
 
-export const MAX_BODY_BYTES = 256 * 1024;
-export const MAX_ITEMS = 50;
+export interface AnalyzedItem {
+  item: IntakeItem;
+  suggestion: Suggestion;
+}
+
+export interface Dependencies {
+  store: Store;
+  analyze: Analyzer;
+  /** Today in Europe/Berlin as YYYY-MM-DD. */
+  today: () => string;
+}
+
+export const MAX_BODY_BYTES = 512 * 1024;
+/** Small on purpose: every item is one model call and the function has a time limit. */
+export const MAX_ITEMS = 10;
+export const MAX_MAIL_CHARS = 8000;
+const ANALYSIS_CONCURRENCY = 5;
 
 export async function hashToken(token: string): Promise<string> {
   const bytes = new TextEncoder().encode(token);
@@ -67,6 +93,7 @@ export function validateItems(raw: unknown): IntakeItem[] | null {
       subject: e.subject.slice(0, 500),
       receivedAt: new Date(e.receivedAt).toISOString(),
       link: e.link,
+      body: typeof e.body === "string" ? e.body.slice(0, MAX_MAIL_CHARS) : "",
     });
   }
   return items;
@@ -79,7 +106,22 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-export async function handleRequest(req: Request, store: Store): Promise<Response> {
+/** Runs `work` over the list with at most `limit` calls at the same time, keeping the order. */
+async function mapLimited<T, R>(list: T[], limit: number, work: (entry: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(list.length);
+  let next = 0;
+  const runners = Array.from({ length: Math.min(limit, list.length) }, async () => {
+    while (next < list.length) {
+      const index = next++;
+      results[index] = await work(list[index]);
+    }
+  });
+  await Promise.all(runners);
+  return results;
+}
+
+export async function handleRequest(req: Request, deps: Dependencies): Promise<Response> {
+  const { store, analyze } = deps;
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
 
   const token = req.headers.get("x-mailbox-token");
@@ -108,8 +150,35 @@ export async function handleRequest(req: Request, store: Store): Promise<Respons
     if (body.action === "items") {
       const items = validateItems(body.items);
       if (!items) return json({ error: "invalid items" }, 400);
-      const saved = items.length === 0 ? 0 : await store.saveItems(mailbox, items);
-      return json({ saved });
+      if (items.length === 0) return json({ saved: 0, handled: [] });
+
+      // Mails that are already saved are not analyzed again, but are reported as handled.
+      const known = await store.knownMessageIds(mailbox.id, items.map((i) => i.gmailMessageId));
+      const fresh = items.filter((i) => !known.has(i.gmailMessageId));
+      const context = fresh.length > 0 ? await store.loadContext(mailbox.familyId) : "";
+      const today = deps.today();
+
+      // A failed analysis (API down, quota) leaves the mail out, so the script sends it again next time.
+      const analyzed = await mapLimited(fresh, ANALYSIS_CONCURRENCY, async (item): Promise<AnalyzedItem | null> => {
+        try {
+          const suggestion = await analyze({
+            sender: item.sender,
+            subject: item.subject,
+            receivedAt: item.receivedAt,
+            body: item.body,
+            context,
+            today,
+          });
+          return { item, suggestion };
+        } catch (error) {
+          console.error("analysis failed", error instanceof Error ? error.message : "unknown error");
+          return null;
+        }
+      });
+      const done = analyzed.filter((entry): entry is AnalyzedItem => entry !== null);
+      const saved = done.length === 0 ? 0 : await store.saveItems(mailbox, done);
+      const handled = [...known, ...done.map((entry) => entry.item.gmailMessageId)];
+      return json({ saved, handled });
     }
     return json({ error: "unknown action" }, 400);
   } catch (error) {
@@ -144,8 +213,20 @@ async function createStore(): Promise<Store> {
         keywords: rows.filter((r) => r.kind === "keyword").map((r) => r.value),
       };
     },
+    async knownMessageIds(mailboxId, ids) {
+      const { data, error } = await client.from("inbox_items").select("gmail_message_id")
+        .eq("mailbox_id", mailboxId).in("gmail_message_id", ids);
+      if (error) throw new Error(error.message);
+      return new Set((data ?? []).map((row) => row.gmail_message_id as string));
+    },
+    async loadContext(familyId) {
+      const { data, error } = await client.from("mail_context").select("context").eq("family_id", familyId)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return data?.context ?? "";
+    },
     async saveItems(mailbox, items) {
-      const rows = items.map((item) => ({
+      const rows = items.map(({ item, suggestion }) => ({
         family_id: mailbox.familyId,
         mailbox_id: mailbox.id,
         gmail_message_id: item.gmailMessageId,
@@ -154,6 +235,8 @@ async function createStore(): Promise<Store> {
         subject: item.subject,
         received_at: item.receivedAt,
         link: item.link,
+        suggestion,
+        analyzed_at: new Date().toISOString(),
       }));
       // Mails that were already saved are skipped, so the script may send the same mail again.
       const { data, error } = await client.from("inbox_items")
@@ -168,5 +251,10 @@ async function createStore(): Promise<Store> {
 // The tests import this file and set MAIL_INTAKE_TEST so that no server is started.
 if (!Deno.env.get("MAIL_INTAKE_TEST")) {
   const store = await createStore();
-  Deno.serve((req) => handleRequest(req, store));
+  const analyze = createAnthropicAnalyzer(
+    Deno.env.get("ANTHROPIC_API_KEY"),
+    Deno.env.get("ANTHROPIC_MODEL") ?? "claude-haiku-5-5",
+  );
+  const today = () => new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Berlin" }).format(new Date());
+  Deno.serve((req) => handleRequest(req, { store, analyze, today }));
 }
