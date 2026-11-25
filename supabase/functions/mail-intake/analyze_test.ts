@@ -6,6 +6,7 @@ import {
   buildUserMessage,
   createAnthropicAnalyzer,
   parseModelAnswer,
+  type Suggestion,
   validateSuggestion,
 } from "./analyze.ts";
 
@@ -18,7 +19,7 @@ const input: AnalyzeInput = {
   today: "2026-12-01",
 };
 
-const good = {
+const good: Suggestion = {
   kind: "task",
   title: "Costume for Child Test",
   date: "2026-12-04",
