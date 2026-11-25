@@ -1,6 +1,6 @@
 -- Row-level security tests for the mail intake tables (pgTAP). All people and data are invented.
 begin;
-select plan(17);
+select plan(18);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-0000000000a1', 'alex@example.test'),
@@ -113,6 +113,14 @@ select is(
   0, 'guest sees no mailboxes, filters or inbox items'
 );
 reset role;
+
+-- The Edge Function runs as service_role and must reach the intake tables.
+select ok(
+  has_table_privilege('service_role', 'public.mailboxes', 'SELECT')
+  and has_table_privilege('service_role', 'public.mail_filters', 'SELECT')
+  and has_table_privilege('service_role', 'public.inbox_items', 'INSERT'),
+  'service_role can use the intake tables'
+);
 
 select * from finish();
 rollback;
