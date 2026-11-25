@@ -35,3 +35,18 @@ jobs:
 
       - name: Run RLS tests
         run: supabase test db
+
+  function-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Test Edge Functions
+        env:
+          MAIL_INTAKE_TEST: "1"
+        run: deno test --allow-env supabase/functions/mail-intake
