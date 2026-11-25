@@ -169,7 +169,8 @@ export async function handleRequest(req: Request, deps: Dependencies): Promise<R
             context,
             today,
           });
-          return { item, suggestion };
+          // The text has served its purpose; it must not travel any further.
+          return { item: { ...item, body: "" }, suggestion };
         } catch (error) {
           console.error("analysis failed", error instanceof Error ? error.message : "unknown error");
           return null;
