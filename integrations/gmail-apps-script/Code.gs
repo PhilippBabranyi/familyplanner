@@ -96,8 +96,17 @@ function findPart_(part, mimeType) {
   return null;
 }
 
+/** Gmail sends base64url without padding; Apps Script needs the "=" padding. Unreadable parts give ''. */
 function decode_(part) {
-  return Utilities.newBlob(Utilities.base64DecodeWebSafe(part.body.data)).getDataAsString('UTF-8');
+  try {
+    var data = String(part.body.data);
+    while (data.length % 4 !== 0) {
+      data += '=';
+    }
+    return Utilities.newBlob(Utilities.base64DecodeWebSafe(data)).getDataAsString('UTF-8');
+  } catch (error) {
+    return '';
+  }
 }
 
 /** Gmail search: recent mails from any listed sender or containing any listed keyword. */
