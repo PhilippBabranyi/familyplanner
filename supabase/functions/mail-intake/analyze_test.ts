@@ -129,3 +129,26 @@ Deno.test("API errors and a missing key throw so that the mail is retried", asyn
   await assertRejects(() => createAnthropicAnalyzer("test-key", "m", impl)(input), AnalysisUnavailable);
   await assertRejects(() => createAnthropicAnalyzer(undefined, "m", impl)(input), AnalysisUnavailable);
 });
+
+Deno.test("an answer without JSON is asked for a second time", async () => {
+  let calls = 0;
+  const impl = (() => {
+    calls++;
+    const text = calls === 1 ? "I cannot help with that." : JSON.stringify(good);
+    return Promise.resolve(new Response(JSON.stringify({ content: [{ type: "text", text }] })));
+  }) as typeof fetch;
+  const result = await createAnthropicAnalyzer("test-key", "test-model", impl)(input);
+  assertEquals(calls, 2);
+  assertEquals(result, good);
+});
+
+Deno.test("two answers without JSON give a suggestion of kind none", async () => {
+  let calls = 0;
+  const impl = (() => {
+    calls++;
+    return Promise.resolve(new Response(JSON.stringify({ content: [], stop_reason: "refusal" })));
+  }) as typeof fetch;
+  const result = await createAnthropicAnalyzer("test-key", "test-model", impl)(input);
+  assertEquals(calls, 2);
+  assertEquals(result.kind, "none");
+});

@@ -159,39 +159,47 @@ export function createAnthropicAnalyzer(
 ): Analyzer {
   return async (input) => {
     if (!apiKey) throw new AnalysisUnavailable("ANTHROPIC_API_KEY is not set");
-    const response = await fetchImpl("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 700,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: buildUserMessage(input) }],
-      }),
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!response.ok) {
-      // Never log the response body: it can echo parts of the mail.
-      throw new AnalysisUnavailable(`Anthropic API answered with ${response.status}`);
+    // One retry when the answer holds no JSON at all (empty or plain text). Errors of the API itself are not
+    // retried here: they throw, and the whole mail is sent again on the next run.
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const response = await fetchImpl("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 700,
+          system: SYSTEM_PROMPT,
+          messages: [{ role: "user", content: buildUserMessage(input) }],
+        }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!response.ok) {
+        // Never log the response body: it can echo parts of the mail.
+        throw new AnalysisUnavailable(`Anthropic API answered with ${response.status}`);
+      }
+      const data = await response.json();
+      const blocks: { type?: string; text?: string }[] = Array.isArray(data?.content) ? data.content : [];
+      const answer = blocks.map((block) => block.text ?? "").join("");
+      const parsed = parseModelAnswer(answer);
+      if (parsed === null) {
+        // Only technical facts are logged, never the text.
+        console.error(
+          `model answer rejected: no JSON found (attempt ${attempt}, stop_reason=${data?.stop_reason}, ` +
+            `blocks=${blocks.map((b) => b.type).join("+") || "none"}, chars=${answer.length})`,
+        );
+        continue;
+      }
+      const checked = checkSuggestion(parsed);
+      if (!checked.ok) {
+        console.error(`model answer rejected: ${checked.reason}`);
+        return fallbackSuggestion(input.subject);
+      }
+      return checked.value;
     }
-    const data = await response.json();
-    const answer = Array.isArray(data?.content)
-      ? data.content.map((block: { text?: string }) => block.text ?? "").join("")
-      : "";
-    const parsed = parseModelAnswer(answer);
-    if (parsed === null) {
-      console.error("model answer rejected: no JSON found");
-      return fallbackSuggestion(input.subject);
-    }
-    const checked = checkSuggestion(parsed);
-    if (!checked.ok) {
-      console.error(`model answer rejected: ${checked.reason}`);
-      return fallbackSuggestion(input.subject);
-    }
-    return checked.value;
+    return fallbackSuggestion(input.subject);
   };
 }
