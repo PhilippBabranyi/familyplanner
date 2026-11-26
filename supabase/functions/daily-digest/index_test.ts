@@ -5,15 +5,27 @@ import type { FamilyData } from "./digest.ts";
 import type { PushMessage } from "./push.ts";
 
 const SECRET = "s".repeat(32);
-const emptyData: FamilyData = { items: [], pickups: {}, holidays: [], tasks: [] };
+const emptyData: FamilyData = {
+  items: [], pickups: {}, pickupRemind: {}, pickupDrivers: {}, holidays: [], tasks: [],
+};
+// 2026-12-03 is a Thursday: pickup at 16:20, reminder 45 minutes before, Sam picks up.
+const pickupData: FamilyData = {
+  ...emptyData,
+  pickups: { 4: "16:20:00" },
+  pickupRemind: { 4: 45 },
+  pickupDrivers: { "2026-12-03": { id: "u-sam", name: "Sam" } },
+};
 
-function setup(options: { now: string; tokens?: string[]; failLoad?: boolean; claimed?: string[] }) {
+function setup(
+  options: { now: string; tokens?: string[]; failLoad?: boolean; claimed?: string[]; data?: FamilyData },
+) {
   const claimed = new Set(options.claimed ?? []);
   const pushes: { tokens: string[]; message: PushMessage }[] = [];
   const deleted: string[] = [];
+  const tokenUsers: (string | undefined)[] = [];
   const store: Store = {
     loadFamilyIds: () => Promise.resolve(["f1"]),
-    loadFamilyData: () => options.failLoad ? Promise.reject(new Error("db down")) : Promise.resolve(emptyData),
+    loadFamilyData: () => options.failLoad ? Promise.reject(new Error("db down")) : Promise.resolve(options.data ?? emptyData),
     claimSlot: (family, day, slot) => {
       const key = `${family}|${day}|${slot}`;
       if (claimed.has(key)) return Promise.resolve(false);
@@ -24,7 +36,10 @@ function setup(options: { now: string; tokens?: string[]; failLoad?: boolean; cl
       claimed.delete(`${family}|${day}|${slot}`);
       return Promise.resolve();
     },
-    loadDeviceTokens: () => Promise.resolve(options.tokens ?? ["t1", "t2"]),
+    loadDeviceTokens: (_family, user) => {
+      tokenUsers.push(user);
+      return Promise.resolve(options.tokens ?? ["t1", "t2"]);
+    },
     deleteDeviceTokens: (tokens) => {
       deleted.push(...tokens);
       return Promise.resolve();
@@ -40,7 +55,7 @@ function setup(options: { now: string; tokens?: string[]; failLoad?: boolean; cl
     secret: SECRET,
     random: () => 0,
   };
-  return { deps, pushes, deleted, claimed };
+  return { deps, pushes, deleted, claimed, tokenUsers };
 }
 
 const call = (deps: Dependencies, headers: Record<string, string> = { "x-digest-secret": SECRET }, method = "POST") =>
@@ -100,4 +115,24 @@ Deno.test("a family without phones still uses up the slot", async () => {
   await call(deps);
   assertEquals(pushes.length, 0);
   assertEquals(claimed.size, 1);
+});
+
+// 15:40 in Berlin on Thursday 2026-12-03 (UTC+1).
+const THURSDAY_1540 = "2026-12-03T14:40:00Z";
+
+Deno.test("the pickup reminder goes only to the driver, once", async () => {
+  const { deps, pushes, tokenUsers } = setup({ now: THURSDAY_1540, data: pickupData });
+  assertEquals((await (await call(deps)).json()).sent, ["pickup"]);
+  assertEquals((await (await call(deps)).json()).sent, []);
+  assertEquals(pushes.length, 1);
+  assertEquals(tokenUsers, ["u-sam"]);
+  assertEquals(pushes[0].message.title, "🚗 Zeit zum Losfahren");
+});
+
+Deno.test("no reminder before the lead time or when nobody is entered", async () => {
+  const early = setup({ now: "2026-12-03T14:30:00Z", data: pickupData });
+  assertEquals((await (await call(early.deps)).json()).sent, []);
+  const nobody = setup({ now: THURSDAY_1540, data: { ...pickupData, pickupDrivers: {} } });
+  assertEquals((await (await call(nobody.deps)).json()).sent, []);
+  assertEquals(early.pushes.length + nobody.pushes.length, 0);
 });

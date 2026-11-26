@@ -6,6 +6,9 @@
 
 export type Slot = "morning" | "evening";
 
+/** The slots that are written to digest_log: the two digests and the pickup reminder. */
+export type LogSlot = Slot | "pickup";
+
 export interface CalendarItem {
   title: string;
   startsOn: string;
@@ -37,6 +40,10 @@ export interface FamilyData {
   items: CalendarItem[];
   /** Pickup time by ISO weekday. */
   pickups: Record<number, string>;
+  /** Minutes before the pickup at which the reminder comes, by ISO weekday. */
+  pickupRemind: Record<number, number>;
+  /** Who picks up on which day (`yyyy-MM-dd`). A day that is missing has nobody entered yet. */
+  pickupDrivers: Record<string, { id: string; name: string }>;
   holidays: Holiday[];
   /** Tasks that are not done and have a due date. */
   tasks: OpenTask[];
@@ -45,6 +52,8 @@ export interface FamilyData {
 export interface DayPlan {
   date: string;
   pickup: string | null;
+  /** Name of the person who picks up, or null if nobody is entered. */
+  pickupDriver: string | null;
   holiday: string | null;
   items: { time: string; title: string; assignee: string | null }[];
   tasksDue: { title: string; time: string | null; assignee: string | null }[];
@@ -141,6 +150,7 @@ export function planDay(data: FamilyData, date: string): DayPlan {
   return {
     date,
     pickup: pickup ? hhmm(pickup) : null,
+    pickupDriver: pickup ? data.pickupDrivers[date]?.name ?? null : null,
     holiday: holiday?.name ?? null,
     items: items.map((i) => ({ time: hhmm(i.atTime), title: i.title, assignee: i.assignee })),
     tasksDue: due.map((t) => ({ title: t.title, time: t.dueTime ? hhmm(t.dueTime) : null, assignee: t.assignee })),
@@ -172,10 +182,15 @@ export function buildDigest(
   random: () => number = Math.random,
 ): { title: string; body: string } {
   const titles = slot === "morning" ? MORNING_TITLES : EVENING_TITLES;
-  const title = titles[Math.floor(random() * titles.length) % titles.length];
+  const pickupOpen = plan.pickup !== null && plan.pickupDriver === null;
+  const title = pickupOpen
+    ? (slot === "morning" ? "🚗 Wer holt heute ab?" : "🚗 Wer holt morgen ab?")
+    : titles[Math.floor(random() * titles.length) % titles.length];
   const lines: string[] = [];
   if (plan.holiday) lines.push(`Ferien: ${plan.holiday}`);
-  if (plan.pickup) lines.push(`Abholung ${plan.pickup}`);
+  if (plan.pickup) {
+    lines.push(plan.pickupDriver ? `Abholung ${plan.pickup} (${plan.pickupDriver})` : `Abholung ${plan.pickup}: noch niemand eingetragen`);
+  }
   for (const item of plan.items.slice(0, MAX_ITEM_LINES)) {
     lines.push(`${item.time} ${withPerson(item.title, item.assignee)}`);
   }
@@ -200,4 +215,28 @@ export function buildDigest(
 /** The day a slot talks about: today for the morning, tomorrow for the evening. */
 export function targetDate(slot: Slot, today: string): string {
   return slot === "morning" ? today : addDays(today, 1);
+}
+
+export interface PickupReminder {
+  /** Account that has to leave soon. */
+  driverId: string;
+  message: { title: string; body: string };
+}
+
+/**
+ * The reminder "time to leave" for today's pickup, if it is due: from `remind_minutes` before the pickup until the
+ * pickup itself (a missed tick is made up for), and only if somebody is entered and it is no holiday.
+ */
+export function pickupReminder(data: FamilyData, clock: Clock): PickupReminder | null {
+  const plan = planDay(data, clock.date);
+  const driver = data.pickupDrivers[clock.date];
+  if (!plan.pickup || !driver) return null;
+  const [hours, minutes] = plan.pickup.split(":").map(Number);
+  const pickupAt = hours * 60 + minutes;
+  const lead = data.pickupRemind[clock.weekday] ?? 30;
+  if (clock.minutes < pickupAt - lead || clock.minutes >= pickupAt) return null;
+  return {
+    driverId: driver.id,
+    message: { title: "🚗 Zeit zum Losfahren", body: `Abholung um ${plan.pickup}. Du holst heute ab.` },
+  };
 }

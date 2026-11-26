@@ -14,6 +14,8 @@ import {
   type Clock,
   dueSlots,
   type FamilyData,
+  type LogSlot,
+  pickupReminder,
   planDay,
   type Slot,
   targetDate,
@@ -25,10 +27,11 @@ export interface Store {
   loadFamilyIds(): Promise<string[]>;
   loadFamilyData(familyId: string): Promise<FamilyData>;
   /** True if this call reserved the slot; false if it was already sent (or reserved) for that day. */
-  claimSlot(familyId: string, day: string, slot: Slot): Promise<boolean>;
+  claimSlot(familyId: string, day: string, slot: LogSlot): Promise<boolean>;
   /** Gives a reservation back after a failure, so that the next call can try again. */
-  releaseSlot(familyId: string, day: string, slot: Slot): Promise<void>;
-  loadDeviceTokens(familyId: string): Promise<string[]>;
+  releaseSlot(familyId: string, day: string, slot: LogSlot): Promise<void>;
+  /** The push addresses of the family, or only those of one account. */
+  loadDeviceTokens(familyId: string, userId?: string): Promise<string[]>;
   deleteDeviceTokens(tokens: string[]): Promise<void>;
 }
 
@@ -70,6 +73,24 @@ async function sendSlot(familyId: string, clock: Clock, slot: Slot, deps: Depend
   }
 }
 
+/** Sends "time to leave" to the person who picks up, once per day. Returns true if it was sent. */
+async function sendPickupReminder(familyId: string, clock: Clock, deps: Dependencies): Promise<boolean> {
+  const data = await deps.store.loadFamilyData(familyId);
+  const reminder = pickupReminder(data, clock);
+  if (!reminder) return false;
+  if (!(await deps.store.claimSlot(familyId, clock.date, "pickup"))) return false;
+  try {
+    const tokens = await deps.store.loadDeviceTokens(familyId, reminder.driverId);
+    if (tokens.length === 0) return true;
+    const { invalid } = await deps.push(tokens, reminder.message);
+    if (invalid.length > 0) await deps.store.deleteDeviceTokens(invalid);
+    return true;
+  } catch (error) {
+    await deps.store.releaseSlot(familyId, clock.date, "pickup");
+    throw error;
+  }
+}
+
 export async function handleRequest(req: Request, deps: Dependencies): Promise<Response> {
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
   const given = req.headers.get("x-digest-secret");
@@ -80,15 +101,18 @@ export async function handleRequest(req: Request, deps: Dependencies): Promise<R
     const clock = berlinClock(deps.now());
     const slots = dueSlots(clock);
     const sent: string[] = [];
-    if (slots.length > 0) {
-      for (const familyId of await deps.store.loadFamilyIds()) {
-        for (const slot of slots) {
-          try {
-            if (await sendSlot(familyId, clock, slot, deps)) sent.push(slot);
-          } catch (error) {
-            console.error("digest failed", error instanceof Error ? error.message : "unknown error");
-          }
+    for (const familyId of await deps.store.loadFamilyIds()) {
+      for (const slot of slots) {
+        try {
+          if (await sendSlot(familyId, clock, slot, deps)) sent.push(slot);
+        } catch (error) {
+          console.error("digest failed", error instanceof Error ? error.message : "unknown error");
         }
+      }
+      try {
+        if (await sendPickupReminder(familyId, clock, deps)) sent.push("pickup");
+      } catch (error) {
+        console.error("pickup reminder failed", error instanceof Error ? error.message : "unknown error");
       }
     }
     return json({ date: clock.date, due: slots, sent });
@@ -96,6 +120,11 @@ export async function handleRequest(req: Request, deps: Dependencies): Promise<R
     console.error("daily-digest failed", error instanceof Error ? error.message : "unknown error");
     return json({ error: "server error" }, 500);
   }
+}
+
+/** Yesterday in UTC is early enough for every Berlin day that can matter, and keeps the old rows out. */
+function yesterday(): string {
+  return new Date(Date.now() - 24 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
 async function createStore(): Promise<Store> {
@@ -113,25 +142,35 @@ async function createStore(): Promise<Store> {
       return (data ?? []).map((row) => row.id as string);
     },
     async loadFamilyData(familyId) {
-      const [items, pickups, holidays, tasks, accounts, people] = await Promise.all([
+      const [items, pickups, holidays, tasks, accounts, people, drivers] = await Promise.all([
         client.from("calendar_items")
           .select("title,starts_on,at_time,weekdays,repeat_until,skip_holidays,assignee,assignee_person,cash_cents")
           .eq("family_id", familyId),
-        client.from("pickup_times").select("weekday,pickup_time").eq("family_id", familyId),
+        client.from("pickup_times").select("weekday,pickup_time,remind_minutes").eq("family_id", familyId),
         client.from("holidays").select("name,starts_on,ends_on").eq("family_id", familyId),
         client.from("tasks")
           .select("title,assignee,assignee_person,due_on,due_time,cash_cents")
           .eq("family_id", familyId).neq("status", "done").not("due_on", "is", null),
         client.from("family_members").select("user_id,display_name").eq("family_id", familyId),
         client.from("household_people").select("id,display_name").eq("family_id", familyId),
+        client.from("pickup_drivers").select("day,driver").eq("family_id", familyId).gte("day", yesterday()),
       ]);
-      for (const result of [items, pickups, holidays, tasks, accounts, people]) fail(result.error);
+      for (const result of [items, pickups, holidays, tasks, accounts, people, drivers]) fail(result.error);
       const names = new Map<string, string>();
       for (const row of accounts.data ?? []) names.set(row.user_id as string, row.display_name as string);
       for (const row of people.data ?? []) names.set(row.id as string, row.display_name as string);
       const nameOf = (account: string | null, person: string | null) => names.get(account ?? person ?? "") ?? null;
       const pickupTimes: Record<number, string> = {};
-      for (const row of pickups.data ?? []) pickupTimes[row.weekday as number] = row.pickup_time as string;
+      const pickupRemind: Record<number, number> = {};
+      for (const row of pickups.data ?? []) {
+        pickupTimes[row.weekday as number] = row.pickup_time as string;
+        pickupRemind[row.weekday as number] = row.remind_minutes as number;
+      }
+      const pickupDrivers: Record<string, { id: string; name: string }> = {};
+      for (const row of drivers.data ?? []) {
+        const id = row.driver as string;
+        pickupDrivers[row.day as string] = { id, name: names.get(id) ?? "?" };
+      }
       return {
         items: (items.data ?? []).map((row) => ({
           title: row.title as string,
@@ -144,6 +183,8 @@ async function createStore(): Promise<Store> {
           cashCents: (row.cash_cents as number | null) ?? null,
         })),
         pickups: pickupTimes,
+        pickupRemind,
+        pickupDrivers,
         holidays: (holidays.data ?? []).map((row) => ({
           name: row.name as string,
           startsOn: row.starts_on as string,
@@ -170,8 +211,10 @@ async function createStore(): Promise<Store> {
         .eq("family_id", familyId).eq("day", day).eq("slot", slot);
       fail(error);
     },
-    async loadDeviceTokens(familyId) {
-      const { data, error } = await client.from("device_tokens").select("token").eq("family_id", familyId);
+    async loadDeviceTokens(familyId, userId) {
+      let query = client.from("device_tokens").select("token").eq("family_id", familyId);
+      if (userId) query = query.eq("user_id", userId);
+      const { data, error } = await query;
       fail(error);
       return (data ?? []).map((row) => row.token as string);
     },
