@@ -139,7 +139,7 @@ actor SupabaseDataSource: FamilyDataSource {
             items: rows.compactMap { $0.makeItem(names: names) },
             pickups: pickups,
             holidays: holidayRows.map { $0.makeHoliday() },
-            pickupDrivers: Dictionary(driverRows.map { ($0.day, $0.driver) }, uniquingKeysWith: { _, last in last }),
+            pickupDrivers: Dictionary(driverRows.map { ($0.day, $0.driverId) }, uniquingKeysWith: { _, last in last }),
             remindMinutes: reminderRows.first?.remindMinutes ?? 30
         )
     }

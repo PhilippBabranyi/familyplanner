@@ -162,4 +162,12 @@ final class WeekBuilderTests: XCTestCase {
         XCTAssertNil(result.driverByDay[.tuesday])
         XCTAssertNil(result.driverByDay[.wednesday])
     }
+
+    func testPickupDriverIdMatchesTheMemberIdOfTheApp() throws {
+        // The database delivers ids in lower case; the app builds member ids from UUID.uuidString (upper case).
+        let id = UUID()
+        let json = "{\"day\":\"2026-11-26\",\"driver\":\"\(id.uuidString.lowercased())\"}"
+        let row = try JSONDecoder().decode(PickupDriverRow.self, from: Data(json.utf8))
+        XCTAssertEqual(row.driverId, id.uuidString)
+    }
 }
