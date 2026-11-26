@@ -293,7 +293,7 @@ final class WeekViewModelTests: XCTestCase {
         XCTAssertEqual(model.errorMessage, "Die Entscheidung konnte nicht gespeichert werden.")
     }
 
-    func testLoadFailureShowsMessage() async {
+    func testSuggestionLoadFailureShowsMessage() async {
         let model = InboxViewModel(source: FailingSource())
         await model.load()
         XCTAssertEqual(model.errorMessage, "Vorschläge konnten nicht geladen werden.")
