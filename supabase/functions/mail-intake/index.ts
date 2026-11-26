@@ -13,6 +13,7 @@
 // The key for the model is the Supabase secret ANTHROPIC_API_KEY.
 
 import { type Analyzer, createAnthropicAnalyzer, type Suggestion } from "./analyze.ts";
+import { type ApnsConfig, buildPushMessage, createApnsSender, type PushSender } from "./push.ts";
 
 export interface IntakeItem {
   gmailMessageId: string;
@@ -44,6 +45,9 @@ export interface Store {
   knownMessageIds(mailboxId: string, ids: string[]): Promise<Set<string>>;
   loadContext(familyId: string): Promise<string>;
   saveItems(mailbox: Mailbox, items: AnalyzedItem[]): Promise<number>;
+  /** Push tokens of the family's phones. */
+  loadDeviceTokens(familyId: string): Promise<string[]>;
+  deleteDeviceTokens(tokens: string[]): Promise<void>;
 }
 
 export interface AnalyzedItem {
@@ -54,6 +58,7 @@ export interface AnalyzedItem {
 export interface Dependencies {
   store: Store;
   analyze: Analyzer;
+  push: PushSender;
   /** Today in Europe/Berlin as YYYY-MM-DD. */
   today: () => string;
 }
@@ -120,6 +125,20 @@ async function mapLimited<T, R>(list: T[], limit: number, work: (entry: T) => Pr
   return results;
 }
 
+/** Tells the family's phones about new suggestions. A failing push never fails the intake. */
+async function notifyFamily(familyId: string, done: AnalyzedItem[], deps: Dependencies): Promise<void> {
+  try {
+    const worthIt = done.map((entry) => entry.suggestion).filter((s) => s.kind !== "none");
+    if (worthIt.length === 0) return;
+    const tokens = await deps.store.loadDeviceTokens(familyId);
+    if (tokens.length === 0) return;
+    const { invalid } = await deps.push(tokens, buildPushMessage(worthIt));
+    if (invalid.length > 0) await deps.store.deleteDeviceTokens(invalid);
+  } catch (error) {
+    console.error("notify failed", error instanceof Error ? error.message : "unknown error");
+  }
+}
+
 export async function handleRequest(req: Request, deps: Dependencies): Promise<Response> {
   const { store, analyze } = deps;
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
@@ -179,6 +198,7 @@ export async function handleRequest(req: Request, deps: Dependencies): Promise<R
       const done = analyzed.filter((entry): entry is AnalyzedItem => entry !== null);
       const saved = done.length === 0 ? 0 : await store.saveItems(mailbox, done);
       const handled = [...known, ...done.map((entry) => entry.item.gmailMessageId)];
+      if (saved > 0) await notifyFamily(mailbox.familyId, done, deps);
       return json({ saved, handled });
     }
     return json({ error: "unknown action" }, 400);
@@ -246,6 +266,15 @@ async function createStore(): Promise<Store> {
       if (error) throw new Error(error.message);
       return data?.length ?? 0;
     },
+    async loadDeviceTokens(familyId) {
+      const { data, error } = await client.from("device_tokens").select("token").eq("family_id", familyId);
+      if (error) throw new Error(error.message);
+      return (data ?? []).map((row) => row.token as string);
+    },
+    async deleteDeviceTokens(tokens) {
+      const { error } = await client.from("device_tokens").delete().in("token", tokens);
+      if (error) throw new Error(error.message);
+    },
   };
 }
 
@@ -257,5 +286,13 @@ if (!Deno.env.get("MAIL_INTAKE_TEST")) {
     Deno.env.get("ANTHROPIC_MODEL") ?? "claude-haiku-5-5",
   );
   const today = () => new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Berlin" }).format(new Date());
-  Deno.serve((req) => handleRequest(req, { store, analyze, today }));
+  const keyPem = Deno.env.get("APNS_KEY_P8");
+  const keyId = Deno.env.get("APNS_KEY_ID");
+  const teamId = Deno.env.get("APNS_TEAM_ID");
+  const apns: ApnsConfig | null = keyPem && keyId && teamId
+    ? { keyPem, keyId, teamId, topic: Deno.env.get("APNS_TOPIC") ?? "de.babranyi.familyplanner" }
+    : null;
+  if (!apns) console.error("push is off: APNS_KEY_P8, APNS_KEY_ID or APNS_TEAM_ID is not set");
+  const push = createApnsSender(apns);
+  Deno.serve((req) => handleRequest(req, { store, analyze, push, today }));
 }

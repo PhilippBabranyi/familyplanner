@@ -3,6 +3,7 @@ import SwiftUI
 
 @main
 struct FamilyPlannerApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var auth: AuthModel
     private let dataSource: FamilyDataSource
     private let now: Date

@@ -53,6 +53,7 @@ struct TaskDraft {
     var assigneeId: String?
     /// `yyyy-MM-dd` or nil for "no date".
     var dueOn: String?
+    var cashCents: Int?
 }
 
 /// Input of the calendar item form. A nil id creates a new item.

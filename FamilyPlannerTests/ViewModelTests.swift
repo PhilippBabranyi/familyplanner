@@ -16,6 +16,9 @@ private actor FailingSource: FamilyDataSource {
     func setPickupTimes(_ times: [Weekday: TimeOfDay]) async throws { throw error }
     func addHoliday(name: String, startsOn: String, endsOn: String) async throws { throw error }
     func deleteHoliday(id: String) async throws { throw error }
+    func loadSuggestions() async throws -> [InboxSuggestion] { throw error }
+    func decideSuggestion(id: String, decision: SuggestionDecision) async throws { throw error }
+    func registerDevice(token: String) async throws { throw error }
     func loadMembers() async throws -> [Member] { throw error }
     func currentMemberName() async throws -> String? { throw error }
 }
@@ -37,6 +40,9 @@ private actor ReadOnlySource: FamilyDataSource {
     func setPickupTimes(_ times: [Weekday: TimeOfDay]) async throws { throw error }
     func addHoliday(name: String, startsOn: String, endsOn: String) async throws { throw error }
     func deleteHoliday(id: String) async throws { throw error }
+    func loadSuggestions() async throws -> [InboxSuggestion] { try await demo.loadSuggestions() }
+    func decideSuggestion(id: String, decision: SuggestionDecision) async throws { throw error }
+    func registerDevice(token: String) async throws { throw error }
     func loadMembers() async throws -> [Member] { try await demo.loadMembers() }
     func currentMemberName() async throws -> String? { nil }
 }
@@ -265,5 +271,39 @@ final class WeekViewModelTests: XCTestCase {
         XCTAssertEqual(model.todayWeekday, .tuesday)
         XCTAssertEqual(model.dayNumber(.monday), 23)
         XCTAssertEqual(model.dayNumber(.sunday), 29)
+    }
+
+    // MARK: Mail suggestions
+
+    func testSuggestionsLoadAndDeciding() async {
+        let model = InboxViewModel(source: DemoDataSource())
+        await model.load()
+        XCTAssertEqual(model.count, DemoData.suggestions.count)
+        await model.decide("s1", .dismissed)
+        XCTAssertEqual(model.count, DemoData.suggestions.count - 1)
+        XCTAssertNil(model.errorMessage)
+    }
+
+    func testFailedDecisionBringsTheSuggestionBack() async {
+        let model = InboxViewModel(source: ReadOnlySource())
+        await model.load()
+        let before = model.count
+        await model.decide("s1", .accepted)
+        XCTAssertEqual(model.count, before)
+        XCTAssertEqual(model.errorMessage, "Die Entscheidung konnte nicht gespeichert werden.")
+    }
+
+    func testSuggestionLoadFailureShowsMessage() async {
+        let model = InboxViewModel(source: FailingSource())
+        await model.load()
+        XCTAssertEqual(model.errorMessage, "Vorschläge konnten nicht geladen werden.")
+        XCTAssertEqual(model.count, 0)
+    }
+
+    func testTaskWithCashIsSaved() async {
+        let model = TasksViewModel(source: DemoDataSource())
+        let saved = await model.save(TaskDraft(id: nil, title: "Kostüm", assigneeId: nil, dueOn: nil, cashCents: 500))
+        XCTAssertTrue(saved)
+        XCTAssertEqual(model.board.tasks.last?.cashCents, 500)
     }
 }

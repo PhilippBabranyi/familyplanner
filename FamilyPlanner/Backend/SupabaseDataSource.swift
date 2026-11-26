@@ -18,7 +18,7 @@ actor SupabaseDataSource: FamilyDataSource {
 
     func loadTasks() async throws -> TaskBoard {
         let rows: [TaskRow] = try await client.from("tasks")
-            .select("id,title,assignee,due_on,status")
+            .select("id,title,assignee,due_on,status,cash_cents")
             .order("created_at")
             .execute().value
         let names = try await memberNames()
@@ -35,12 +35,15 @@ actor SupabaseDataSource: FamilyDataSource {
 
     func saveTask(_ draft: TaskDraft) async throws {
         if let id = draft.id {
-            let write = TaskWrite(familyId: nil, title: draft.title, assignee: draft.assigneeId, dueOn: draft.dueOn)
+            let write = TaskWrite(
+                familyId: nil, title: draft.title, assignee: draft.assigneeId,
+                dueOn: draft.dueOn, cashCents: draft.cashCents
+            )
             try await client.from("tasks").update(write).eq("id", value: id).execute()
         } else {
             let write = TaskWrite(
                 familyId: try await familyId(), title: draft.title,
-                assignee: draft.assigneeId, dueOn: draft.dueOn
+                assignee: draft.assigneeId, dueOn: draft.dueOn, cashCents: draft.cashCents
             )
             try await client.from("tasks").insert(write).execute()
         }
@@ -48,6 +51,28 @@ actor SupabaseDataSource: FamilyDataSource {
 
     func deleteTask(id: String) async throws {
         try await client.from("tasks").delete().eq("id", value: id).execute()
+    }
+
+    // MARK: Mail suggestions and push
+
+    func loadSuggestions() async throws -> [InboxSuggestion] {
+        let rows: [InboxRow] = try await client.from("inbox_items")
+            .select("id,sender,subject,link,suggestion")
+            .eq("status", value: "new")
+            .order("received_at", ascending: false)
+            .execute().value
+        return rows.compactMap { $0.makeSuggestion() }
+    }
+
+    func decideSuggestion(id: String, decision: SuggestionDecision) async throws {
+        try await client.from("inbox_items")
+            .update(["status": decision.databaseValue])
+            .eq("id", value: id)
+            .execute()
+    }
+
+    func registerDevice(token: String) async throws {
+        try await client.rpc("register_device", params: ["device_token": token]).execute()
     }
 
     // MARK: Shopping

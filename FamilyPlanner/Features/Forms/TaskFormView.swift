@@ -13,11 +13,13 @@ struct TaskFormView: View {
     @State private var assigneeId: String?
     @State private var hasDue: Bool
     @State private var due: Date
+    @State private var cash: String
     @State private var isSaving = false
 
     init(
         existing: TaskItem?,
         members: [Member],
+        prefill: TaskDraft? = nil,
         onSave: @escaping (TaskDraft) async -> Bool,
         onDelete: @escaping (String) async -> Bool
     ) {
@@ -25,9 +27,11 @@ struct TaskFormView: View {
         self.members = members
         self.onSave = onSave
         self.onDelete = onDelete
-        _title = State(initialValue: existing?.title ?? "")
-        _assigneeId = State(initialValue: existing?.assigneeId)
-        let date = FormDates.date(fromISO: existing?.dueOn)
+        // A suggestion from a mail fills the form of a new task; an existing task always wins.
+        _title = State(initialValue: existing?.title ?? prefill?.title ?? "")
+        _assigneeId = State(initialValue: existing?.assigneeId ?? prefill?.assigneeId)
+        _cash = State(initialValue: FormDates.text(fromCents: existing?.cashCents ?? prefill?.cashCents))
+        let date = FormDates.date(fromISO: existing?.dueOn ?? prefill?.dueOn)
         _hasDue = State(initialValue: date != nil)
         _due = State(initialValue: date ?? Date())
     }
@@ -45,6 +49,11 @@ struct TaskFormView: View {
                     if hasDue {
                         DatePicker("Bis", selection: $due, displayedComponents: .date)
                     }
+                }
+                Section("Bargeld") {
+                    TextField("Betrag in € (optional)", text: $cash)
+                        .keyboardType(.decimalPad)
+                        .accessibilityIdentifier("task-cash")
                 }
                 if let existing {
                     Section {
@@ -80,7 +89,8 @@ struct TaskFormView: View {
             id: existing?.id,
             title: title,
             assigneeId: assigneeId,
-            dueOn: hasDue ? FormDates.iso(due) : nil
+            dueOn: hasDue ? FormDates.iso(due) : nil,
+            cashCents: FormDates.cents(from: cash)
         )
         Task {
             if await onSave(draft) { dismiss() }

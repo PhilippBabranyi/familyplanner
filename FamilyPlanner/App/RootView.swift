@@ -6,7 +6,10 @@ struct RootView: View {
     @StateObject private var tasks: TasksViewModel
     @StateObject private var shopping: ShoppingViewModel
     @StateObject private var week: WeekViewModel
+    @StateObject private var inbox: InboxViewModel
     @State private var route: Route = .start
+    @State private var showSuggestions = false
+    @Environment(\.scenePhase) private var scenePhase
 
     init(auth: AuthModel, dataSource: FamilyDataSource, now: Date = Date()) {
         self.auth = auth
@@ -14,6 +17,7 @@ struct RootView: View {
         _tasks = StateObject(wrappedValue: TasksViewModel(source: dataSource))
         _shopping = StateObject(wrappedValue: ShoppingViewModel(source: dataSource))
         _week = StateObject(wrappedValue: WeekViewModel(source: dataSource, now: now))
+        _inbox = StateObject(wrappedValue: InboxViewModel(source: dataSource))
     }
 
     var body: some View {
@@ -30,13 +34,39 @@ struct RootView: View {
         }
         .task { await auth.start() }
         .onChange(of: auth.state) { _, _ in route = .start }
+        // Once per sign-in (not once per screen): load the bell and ask for push.
+        .task(id: auth.state) {
+            guard auth.state == .signedIn else { return }
+            await inbox.load()
+            await PushPermission.request()
+            openSuggestionsIfRequested()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active, auth.state == .signedIn else { return }
+            Task { await inbox.load() }
+            openSuggestionsIfRequested()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .pushTokenReceived)) { note in
+            guard let token = note.object as? String else { return }
+            Task { await inbox.registerDevice(token: token) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openSuggestions)) { _ in
+            if auth.state == .signedIn { openSuggestionsIfRequested() }
+        }
+        .sheet(isPresented: $showSuggestions) {
+            SuggestionsSheet(inbox: inbox, tasks: tasks, week: week)
+        }
     }
 
     @ViewBuilder
     private var signedInContent: some View {
         content
             .safeAreaInset(edge: .top, spacing: 0) {
-                if route != .start { homeBar }
+                if route != .start { topBar }
+            }
+            .overlay(alignment: .topTrailing) {
+                // The start screen has no top bar, but the bell must be reachable from there too.
+                if route == .start { bell.padding(.horizontal, 20).padding(.top, 4) }
             }
         if route != .start {
             FloatingTabBar(selection: $route)
@@ -45,8 +75,18 @@ struct RootView: View {
         }
     }
 
-    /// Always-visible way back to the dandelion start screen.
-    private var homeBar: some View {
+    private var bell: some View {
+        BellButton(count: inbox.count) { showSuggestions = true }
+    }
+
+    private func openSuggestionsIfRequested() {
+        guard PushState.openSuggestionsRequested else { return }
+        PushState.openSuggestionsRequested = false
+        showSuggestions = true
+    }
+
+    /// Always-visible way back to the dandelion start screen, and the bell.
+    private var topBar: some View {
         HStack {
             Button {
                 route = .start
@@ -62,6 +102,7 @@ struct RootView: View {
             .accessibilityLabel("Zur Startseite")
             .accessibilityIdentifier("home-button")
             Spacer()
+            bell
         }
         .padding(.horizontal, 20)
         .padding(.top, 4)

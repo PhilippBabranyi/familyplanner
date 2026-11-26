@@ -22,6 +22,13 @@ protocol FamilyDataSource {
     func addHoliday(name: String, startsOn: String, endsOn: String) async throws
     func deleteHoliday(id: String) async throws
 
+    // Mail suggestions and push
+    /// Open suggestions (status "new") that have something to do, newest first.
+    func loadSuggestions() async throws -> [InboxSuggestion]
+    func decideSuggestion(id: String, decision: SuggestionDecision) async throws
+    /// Registers this phone for push notifications.
+    func registerDevice(token: String) async throws
+
     // People
     func loadMembers() async throws -> [Member]
     /// Display name of the signed-in person, if known.
@@ -33,6 +40,7 @@ actor DemoDataSource: FamilyDataSource {
     private var board = DemoData.taskBoard
     private var list = DemoData.shoppingList
     private var calendar = DemoData.calendarData
+    private var suggestions = DemoData.suggestions
 
     func loadTasks() async throws -> TaskBoard { board }
 
@@ -50,10 +58,11 @@ actor DemoDataSource: FamilyDataSource {
             board.tasks[index].assigneeId = draft.assigneeId
             board.tasks[index].dueOn = draft.dueOn
             board.tasks[index].due = due
+            board.tasks[index].cashCents = draft.cashCents
         } else {
             board.tasks.append(TaskItem(
                 id: UUID().uuidString, title: draft.title, assignee: name, assigneeId: draft.assigneeId,
-                dueOn: draft.dueOn, due: due, status: .open
+                dueOn: draft.dueOn, due: due, status: .open, cashCents: draft.cashCents
             ))
         }
     }
@@ -107,6 +116,14 @@ actor DemoDataSource: FamilyDataSource {
     func deleteHoliday(id: String) async throws {
         calendar.holidays.removeAll { $0.id == id }
     }
+
+    func loadSuggestions() async throws -> [InboxSuggestion] { suggestions }
+
+    func decideSuggestion(id: String, decision: SuggestionDecision) async throws {
+        suggestions.removeAll { $0.id == id }
+    }
+
+    func registerDevice(token: String) async throws {}
 
     func loadMembers() async throws -> [Member] { DemoData.members }
 
