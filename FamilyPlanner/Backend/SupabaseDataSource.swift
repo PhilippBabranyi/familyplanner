@@ -18,11 +18,11 @@ actor SupabaseDataSource: FamilyDataSource {
 
     func loadTasks() async throws -> TaskBoard {
         let rows: [TaskRow] = try await client.from("tasks")
-            .select("id,title,assignee,due_on,status,cash_cents")
+            .select("id,title,assignee,assignee_person,due_on,due_time,status,cash_cents")
             .order("created_at")
             .execute().value
-        let names = try await memberNames()
-        return TaskBoard(tasks: rows.map { $0.makeItem(memberNames: names) })
+        let names = try await peopleNames()
+        return TaskBoard(tasks: rows.map { $0.makeItem(names: names) })
     }
 
     func setTaskStatus(id: String, status: TaskStatus) async throws {
@@ -35,15 +35,18 @@ actor SupabaseDataSource: FamilyDataSource {
 
     func saveTask(_ draft: TaskDraft) async throws {
         if let id = draft.id {
+            let columns = AssigneeColumns(memberId: draft.assigneeId)
             let write = TaskWrite(
-                familyId: nil, title: draft.title, assignee: draft.assigneeId,
-                dueOn: draft.dueOn, cashCents: draft.cashCents
+                familyId: nil, title: draft.title, assignee: columns.member, assigneePerson: columns.person,
+                dueOn: draft.dueOn, dueTime: draft.dueTime, cashCents: draft.cashCents
             )
             try await client.from("tasks").update(write).eq("id", value: id).execute()
         } else {
+            let columns = AssigneeColumns(memberId: draft.assigneeId)
             let write = TaskWrite(
                 familyId: try await familyId(), title: draft.title,
-                assignee: draft.assigneeId, dueOn: draft.dueOn, cashCents: draft.cashCents
+                assignee: columns.member, assigneePerson: columns.person,
+                dueOn: draft.dueOn, dueTime: draft.dueTime, cashCents: draft.cashCents
             )
             try await client.from("tasks").insert(write).execute()
         }
@@ -106,7 +109,7 @@ actor SupabaseDataSource: FamilyDataSource {
 
     func loadCalendar() async throws -> CalendarData {
         let rows: [CalendarItemRow] = try await client.from("calendar_items")
-            .select("id,title,note,starts_on,at_time,weekdays,repeat_until,skip_holidays,assignee,cash_cents")
+            .select("id,title,note,starts_on,at_time,weekdays,repeat_until,skip_holidays,assignee,assignee_person,cash_cents")
             .execute().value
         let pickupRows: [PickupRow] = try await client.from("pickup_times")
             .select("weekday,pickup_time")
@@ -115,7 +118,7 @@ actor SupabaseDataSource: FamilyDataSource {
             .select("id,name,starts_on,ends_on")
             .order("starts_on")
             .execute().value
-        let names = try await memberNames()
+        let names = try await peopleNames()
         var pickups: [Weekday: TimeOfDay] = [:]
         for row in pickupRows {
             if let day = Weekday(rawValue: row.weekday), let time = TimeOfDay(databaseValue: row.pickupTime) {
@@ -123,7 +126,7 @@ actor SupabaseDataSource: FamilyDataSource {
             }
         }
         return CalendarData(
-            items: rows.compactMap { $0.makeItem(memberNames: names) },
+            items: rows.compactMap { $0.makeItem(names: names) },
             pickups: pickups,
             holidays: holidayRows.map { $0.makeHoliday() }
         )
@@ -171,9 +174,10 @@ actor SupabaseDataSource: FamilyDataSource {
     // MARK: People
 
     func loadMembers() async throws -> [Member] {
-        try await memberNames()
-            .map { Member(id: $0.key.uuidString, name: $0.value) }
-            .sorted { $0.name < $1.name }
+        let names = try await peopleNames()
+        let accounts = names.members.map { Member(id: $0.key.uuidString, name: $0.value) }
+        let people = names.people.map { Member(id: Member.personPrefix + $0.key.uuidString, name: $0.value) }
+        return (accounts + people).sorted { $0.name < $1.name }
     }
 
     func currentMemberName() async throws -> String? {
@@ -182,6 +186,16 @@ actor SupabaseDataSource: FamilyDataSource {
     }
 
     // MARK: Helpers
+
+    private func peopleNames() async throws -> PeopleNames {
+        let rows: [PersonRow] = try await client.from("household_people")
+            .select("id,display_name")
+            .execute().value
+        return PeopleNames(
+            members: try await memberNames(),
+            people: Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0.displayName) })
+        )
+    }
 
     private func memberNames() async throws -> [UUID: String] {
         let members: [MemberRow] = try await client.from("family_members")

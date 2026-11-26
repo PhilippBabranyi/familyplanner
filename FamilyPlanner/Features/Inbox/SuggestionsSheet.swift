@@ -95,7 +95,8 @@ enum SuggestionDrafts {
     static func task(from suggestion: InboxSuggestion) -> TaskDraft {
         TaskDraft(
             id: nil, title: suggestion.title, assigneeId: nil, dueOn: suggestion.date,
-            cashCents: suggestion.amountCentsInEuro
+            cashCents: suggestion.amountCentsInEuro,
+            dueTime: suggestion.date == nil ? nil : suggestion.time?.description
         )
     }
 

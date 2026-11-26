@@ -89,7 +89,8 @@ enum DemoData {
     static let members = [
         Member(id: "Alex", name: "Alex"),
         Member(id: "Sam", name: "Sam"),
-        Member(id: "Haushaltshilfe", name: "Haushaltshilfe")
+        Member(id: "Haushaltshilfe", name: "Haushaltshilfe"),
+        Member(id: "person:kim", name: "Kim")
     ]
 
     /// The demo week (23 to 29 November 2026) in the shape the database delivers it.

@@ -13,6 +13,8 @@ struct TaskFormView: View {
     @State private var assigneeId: String?
     @State private var hasDue: Bool
     @State private var due: Date
+    @State private var hasTime: Bool
+    @State private var dueTime: Date
     @State private var cash: String
     @State private var isSaving = false
 
@@ -34,6 +36,9 @@ struct TaskFormView: View {
         let date = FormDates.date(fromISO: existing?.dueOn ?? prefill?.dueOn)
         _hasDue = State(initialValue: date != nil)
         _due = State(initialValue: date ?? Date())
+        let time = (existing?.dueTime ?? prefill?.dueTime).flatMap { TimeOfDay(databaseValue: $0) }
+        _hasTime = State(initialValue: time != nil && date != nil)
+        _dueTime = State(initialValue: time.map { FormDates.date(from: $0) } ?? FormDates.date(from: .at(9, 0)))
     }
 
     var body: some View {
@@ -48,6 +53,11 @@ struct TaskFormView: View {
                     Toggle("Mit Datum", isOn: $hasDue)
                     if hasDue {
                         DatePicker("Bis", selection: $due, displayedComponents: .date)
+                        Toggle("Mit Uhrzeit", isOn: $hasTime)
+                        if hasTime {
+                            DatePicker("Um", selection: $dueTime, displayedComponents: .hourAndMinute)
+                                .accessibilityIdentifier("task-time")
+                        }
                     }
                 }
                 Section("Bargeld") {
@@ -90,7 +100,8 @@ struct TaskFormView: View {
             title: title,
             assigneeId: assigneeId,
             dueOn: hasDue ? FormDates.iso(due) : nil,
-            cashCents: FormDates.cents(from: cash)
+            cashCents: FormDates.cents(from: cash),
+            dueTime: hasDue && hasTime ? FormDates.time(from: dueTime).description : nil
         )
         Task {
             if await onSave(draft) { dismiss() }
