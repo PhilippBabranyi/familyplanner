@@ -1,13 +1,9 @@
 -- Bell and push notifications for mail suggestions.
 -- - tasks get an optional cash amount (like calendar items already have)
--- - inbox_items remember whether the family was notified
 -- - device_tokens: the push addresses of the family's phones, written only through register_device()
 
 alter table public.tasks
   add column cash_cents integer check (cash_cents is null or cash_cents >= 0);
-
-alter table public.inbox_items
-  add column notified_at timestamptz;
 
 create table public.device_tokens (
   token text primary key check (length(token) between 32 and 200),
@@ -26,7 +22,6 @@ alter table public.device_tokens enable row level security;
 -- Edge Function (service_role) reads them to send pushes.
 revoke all on public.device_tokens from anon, authenticated;
 grant select, delete on public.device_tokens to service_role;
-grant update (notified_at) on public.inbox_items to service_role;
 
 -- SECURITY DEFINER: lets a phone take over a token that belonged to another account on the same device.
 create function public.register_device(device_token text)

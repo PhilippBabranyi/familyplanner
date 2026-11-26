@@ -1,6 +1,7 @@
 // Run with: MAIL_INTAKE_TEST=1 deno test --allow-env supabase/functions/mail-intake
 import { assertEquals } from "jsr:@std/assert@1";
 import { type Analyzer, fallbackSuggestion, type Suggestion } from "./analyze.ts";
+import type { PushMessage, PushSender } from "./push.ts";
 import {
   type AnalyzedItem,
   type Dependencies,
@@ -28,7 +29,7 @@ const suggestion: Suggestion = {
 };
 
 function fakeStore(overrides: Partial<Store> = {}) {
-  const calls = { touched: [] as string[], saved: [] as AnalyzedItem[][] };
+  const calls = { touched: [] as string[], saved: [] as AnalyzedItem[][], deleted: [] as string[] };
   const store: Store = {
     findMailboxByHash: async (hash) => {
       const known = await hashToken(TOKEN);
@@ -41,6 +42,11 @@ function fakeStore(overrides: Partial<Store> = {}) {
     loadFilters: (): Promise<Filters> => Promise.resolve({ senders: ["school.example"], keywords: ["Frist"] }),
     knownMessageIds: () => Promise.resolve(new Set<string>()),
     loadContext: () => Promise.resolve("Child Test goes to Example School."),
+    loadDeviceTokens: () => Promise.resolve(["token-1", "token-2"]),
+    deleteDeviceTokens: (tokens) => {
+      calls.deleted.push(...tokens);
+      return Promise.resolve();
+    },
     saveItems: (_mailbox: Mailbox, items: AnalyzedItem[]) => {
       calls.saved.push(items);
       return Promise.resolve(items.length);
@@ -50,8 +56,21 @@ function fakeStore(overrides: Partial<Store> = {}) {
   return { store, calls };
 }
 
-function deps(store: Store, analyze: Analyzer = () => Promise.resolve(suggestion)): Dependencies {
-  return { store, analyze, today: () => "2026-12-01" };
+function fakePush() {
+  const sent: { tokens: string[]; message: PushMessage }[] = [];
+  const push: PushSender = (tokens, message) => {
+    sent.push({ tokens, message });
+    return Promise.resolve({ invalid: [] });
+  };
+  return { push, sent };
+}
+
+function deps(
+  store: Store,
+  analyze: Analyzer = () => Promise.resolve(suggestion),
+  push: PushSender = fakePush().push,
+): Dependencies {
+  return { store, analyze, push, today: () => "2026-12-01" };
 }
 
 function request(body: unknown, headers: Record<string, string> = { "x-mailbox-token": TOKEN }, method = "POST") {
@@ -230,4 +249,45 @@ Deno.test("database errors do not leak details", async () => {
   const response = await handleRequest(request({ action: "filters" }), deps(store));
   assertEquals(response.status, 500);
   assertEquals(await response.json(), { error: "server error" });
+});
+
+Deno.test("the family gets one push for new suggestions", async () => {
+  const { store } = fakeStore();
+  const { push, sent } = fakePush();
+  await handleRequest(request({ action: "items", items: [validItem] }), deps(store, undefined, push));
+  assertEquals(sent.length, 1);
+  assertEquals(sent[0].tokens, ["token-1", "token-2"]);
+  assertEquals(sent[0].message.body.includes("Zoo trip"), true);
+});
+
+Deno.test("several new suggestions in one run give one push", async () => {
+  const { store } = fakeStore();
+  const { push, sent } = fakePush();
+  const second = { ...validItem, gmailMessageId: "18c0ffef" };
+  await handleRequest(request({ action: "items", items: [validItem, second] }), deps(store, undefined, push));
+  assertEquals(sent.length, 1);
+  assertEquals(sent[0].message.body.startsWith("2 neue"), true);
+});
+
+Deno.test("mails without anything to do send no push", async () => {
+  const { store } = fakeStore();
+  const { push, sent } = fakePush();
+  const none: Analyzer = (input) => Promise.resolve(fallbackSuggestion(input.subject));
+  await handleRequest(request({ action: "items", items: [validItem] }), deps(store, none, push));
+  assertEquals(sent.length, 0);
+});
+
+Deno.test("dead tokens are removed after a push", async () => {
+  const { store, calls } = fakeStore();
+  const push: PushSender = () => Promise.resolve({ invalid: ["token-2"] });
+  await handleRequest(request({ action: "items", items: [validItem] }), deps(store, undefined, push));
+  assertEquals(calls.deleted, ["token-2"]);
+});
+
+Deno.test("a failing push does not fail the intake", async () => {
+  const { store } = fakeStore();
+  const push: PushSender = () => Promise.reject(new Error("apns down"));
+  const response = await handleRequest(request({ action: "items", items: [validItem] }), deps(store, undefined, push));
+  assertEquals(response.status, 200);
+  assertEquals((await response.json()).saved, 1);
 });

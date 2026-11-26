@@ -55,8 +55,8 @@ reset role;
 -- The Edge Function runs as service_role
 select ok(
   has_table_privilege('service_role', 'public.device_tokens', 'SELECT')
-  and has_column_privilege('service_role', 'public.inbox_items', 'notified_at', 'UPDATE'),
-  'service_role can read tokens and mark items as notified'
+  and has_table_privilege('service_role', 'public.device_tokens', 'DELETE'),
+  'service_role can read and clean up tokens'
 );
 
 select * from finish();
