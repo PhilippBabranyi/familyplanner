@@ -126,6 +126,13 @@ final class ShoppingViewModel: ObservableObject {
     }
 }
 
+/// The pickup shown on the today screen.
+struct TodayPickup: Equatable {
+    let time: TimeOfDay
+    let driver: String?
+    let mark: PickupMark
+}
+
 @MainActor
 final class WeekViewModel: ObservableObject {
     @Published private(set) var data = CalendarData()
@@ -261,7 +268,19 @@ final class WeekViewModel: ObservableObject {
 
     /// Name of the person who picks up on a day of the shown week.
     func driverName(on day: Weekday) -> String? {
-        guard let id = shownPlan.driverByDay[day] else { return nil }
+        accountName(shownPlan.driverByDay[day])
+    }
+
+    /// Today's pickup, nil if there is none.
+    var todayPickup: TodayPickup? {
+        guard let time = plan.pickupTime(on: todayWeekday), let mark = plan.pickupMark(on: todayWeekday) else {
+            return nil
+        }
+        return TodayPickup(time: time, driver: accountName(plan.driverByDay[todayWeekday]), mark: mark)
+    }
+
+    private func accountName(_ id: String?) -> String? {
+        guard let id else { return nil }
         return accounts.first { $0.id == id }?.name ?? "jemand"
     }
 

@@ -203,4 +203,24 @@ final class WeekBuilderTests: XCTestCase {
         let text = try XCTUnwrap(String(bytes: data, encoding: .utf8))
         XCTAssertTrue(text.contains(#""pickup_time":null"#))
     }
+
+    func testPickupMarks() {
+        let data = CalendarData(
+            pickups: [.monday: .at(15, 20), .tuesday: .at(15, 20), .wednesday: .at(15, 20), .thursday: .at(16, 20)],
+            pickupDrivers: ["2026-11-23": "sam", "2026-11-25": "sam", "2026-11-26": "sam"],
+            pickupOverrides: ["2026-11-25": .time(.at(13, 0)), "2026-11-24": .cancelled]
+        )
+        let result = WeekBuilder.plan(data: data, weekStart: date("2026-11-23"), calendar: calendar)
+        // The weekly plan with somebody entered is normal, even if the time differs from other days.
+        XCTAssertEqual(result.pickupMark(on: .monday), .assigned)
+        XCTAssertEqual(result.pickupMark(on: .thursday), .assigned)
+        // A change for one day is orange; so is a cancelled pickup.
+        XCTAssertEqual(result.pickupMark(on: .wednesday), .changed)
+        XCTAssertEqual(result.pickupMark(on: .tuesday), .changed)
+        // Nobody entered is red, and a day without any pickup has no mark.
+        XCTAssertNil(result.pickupMark(on: .friday))
+        let open = CalendarData(pickups: [.monday: .at(15, 20)])
+        let openPlan = WeekBuilder.plan(data: open, weekStart: date("2026-11-23"), calendar: calendar)
+        XCTAssertEqual(openPlan.pickupMark(on: .monday), .open)
+    }
 }
