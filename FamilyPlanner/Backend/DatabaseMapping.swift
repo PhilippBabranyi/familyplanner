@@ -232,6 +232,31 @@ struct PickupRow: Decodable {
     }
 }
 
+struct PickupReminderRow: Decodable {
+    let remindMinutes: Int
+
+    enum CodingKeys: String, CodingKey {
+        case remindMinutes = "remind_minutes"
+    }
+}
+
+struct PickupDriverRow: Decodable {
+    let day: String
+    let driver: String
+}
+
+struct PickupDriverWrite: Encodable {
+    let familyId: UUID
+    let day: String
+    let driver: String
+
+    enum CodingKeys: String, CodingKey {
+        case familyId = "family_id"
+        case day
+        case driver
+    }
+}
+
 struct HolidayRow: Decodable {
     let id: UUID
     let name: String

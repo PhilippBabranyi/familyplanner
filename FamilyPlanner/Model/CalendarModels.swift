@@ -55,6 +55,10 @@ struct CalendarData {
     var items: [StoredCalendarItem] = []
     var pickups: [Weekday: TimeOfDay] = [:]
     var holidays: [Holiday] = []
+    /// Account (member id) that picks up on a day, by `yyyy-MM-dd`. A missing day means nobody is entered yet.
+    var pickupDrivers: [String: String] = [:]
+    /// Minutes before the pickup at which the person who picks up gets the reminder.
+    var remindMinutes = 30
 }
 
 /// Input of the task form. A nil id creates a new task.

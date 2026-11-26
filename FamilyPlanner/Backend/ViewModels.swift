@@ -134,6 +134,8 @@ final class WeekViewModel: ObservableObject {
         itemsByDay: [:]
     )
     @Published private(set) var memberName: String?
+    /// Family members with an account: they can be entered as the person who picks up.
+    @Published private(set) var accounts: [Member] = []
     @Published private(set) var errorMessage: String?
 
     /// The week of today. Today's screen and the pickup logic always work on this week.
@@ -210,6 +212,7 @@ final class WeekViewModel: ObservableObject {
     func load() async {
         // The name is fetched first and on its own, so that the greeting does not depend on the calendar.
         if let name = try? await source.currentMemberName() { memberName = name }
+        if let members = try? await source.loadMembers() { accounts = members.filter { $0.personId == nil } }
         do {
             data = try await source.loadCalendar()
             plan = WeekBuilder.plan(data: data, weekStart: weekStart, calendar: calendar)
@@ -233,8 +236,25 @@ final class WeekViewModel: ObservableObject {
         await change("Der Termin konnte nicht gelöscht werden.") { try await $0.deleteCalendarItem(id: id) }
     }
 
-    func savePickups(_ times: [Weekday: TimeOfDay]) async -> Bool {
-        await change("Die Abholzeiten konnten nicht gespeichert werden.") { try await $0.setPickupTimes(times) }
+    func savePickups(_ times: [Weekday: TimeOfDay], remindMinutes: Int? = nil) async -> Bool {
+        await change("Die Abholzeiten konnten nicht gespeichert werden.") {
+            try await $0.setPickupTimes(times)
+            if let remindMinutes { try await $0.setPickupReminder(minutes: remindMinutes) }
+        }
+    }
+
+    /// Enters who picks up on a day, or nobody (nil).
+    func setPickupDriver(day: Weekday, memberId: String?) async -> Bool {
+        let dayText = FormDates.iso(shownDate(of: day))
+        return await change("Die Abholung konnte nicht gespeichert werden.") {
+            try await $0.setPickupDriver(day: dayText, memberId: memberId)
+        }
+    }
+
+    /// Name of the person who picks up on a day of the shown week.
+    func driverName(on day: Weekday) -> String? {
+        guard let id = shownPlan.driverByDay[day] else { return nil }
+        return accounts.first { $0.id == id }?.name ?? "jemand"
     }
 
     func addHoliday(name: String, startsOn: String, endsOn: String) async -> Bool {

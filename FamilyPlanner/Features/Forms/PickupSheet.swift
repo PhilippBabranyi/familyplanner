@@ -10,6 +10,7 @@ struct PickupSheet: View {
     @State private var holidayName = ""
     @State private var holidayStart = Date()
     @State private var holidayEnd = Date()
+    @State private var remindMinutes: Int
     @State private var isSaving = false
 
     init(model: WeekViewModel) {
@@ -21,6 +22,7 @@ struct PickupSheet: View {
             initial[day] = FormDates.date(from: pickups[day] ?? .at(15, 20))
         }
         _times = State(initialValue: initial)
+        _remindMinutes = State(initialValue: model.data.remindMinutes)
     }
 
     var body: some View {
@@ -38,6 +40,16 @@ struct PickupSheet: View {
                         }
                     }
                 }
+                Section {
+                    Picker("Erinnerung", selection: $remindMinutes) {
+                        ForEach(reminderChoices, id: \.self) { minutes in
+                            Text("\(minutes) Minuten vorher").tag(minutes)
+                        }
+                    }
+                    .accessibilityIdentifier("pickup-remind")
+                } footer: {
+                    Text("Die Person, die an dem Tag abholt, bekommt dann die Nachricht „Zeit zum Losfahren“.")
+                }
                 holidaySection
             }
             .softFormStyle()
@@ -54,6 +66,11 @@ struct PickupSheet: View {
                 }
             }
         }
+    }
+
+    /// The usual lead times, plus the stored one if it is something else.
+    private var reminderChoices: [Int] {
+        Array(Set([10, 15, 20, 30, 45, 60, 90, remindMinutes])).sorted()
     }
 
     private var holidaySection: some View {
@@ -113,7 +130,7 @@ struct PickupSheet: View {
             result[day] = FormDates.time(from: times[day] ?? Date())
         }
         Task {
-            if await model.savePickups(result) { dismiss() }
+            if await model.savePickups(result, remindMinutes: remindMinutes) { dismiss() }
             isSaving = false
         }
     }
