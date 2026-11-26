@@ -1,6 +1,7 @@
 import XCTest
 @testable import FamilyPlanner
 
+@MainActor
 final class PeopleTests: XCTestCase {
     private let account = UUID()
     private let person = UUID()
