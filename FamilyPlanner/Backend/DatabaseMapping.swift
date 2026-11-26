@@ -57,10 +57,12 @@ struct TaskRow: Decodable {
     let assignee: UUID?
     let dueOn: String?
     let status: String
+    let cashCents: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, title, assignee, status
         case dueOn = "due_on"
+        case cashCents = "cash_cents"
     }
 }
 
@@ -109,7 +111,8 @@ extension TaskRow {
             assigneeId: assignee?.uuidString,
             dueOn: dueOn,
             due: DueText.make(from: dueOn),
-            status: TaskStatus(databaseValue: status) ?? .open
+            status: TaskStatus(databaseValue: status) ?? .open,
+            cashCents: cashCents
         )
     }
 }
@@ -202,11 +205,13 @@ struct TaskWrite: Encodable {
     let title: String
     let assignee: String?
     let dueOn: String?
+    let cashCents: Int?
 
     enum CodingKeys: String, CodingKey {
         case familyId = "family_id"
         case title, assignee
         case dueOn = "due_on"
+        case cashCents = "cash_cents"
     }
 
     func encode(to encoder: Encoder) throws {
@@ -216,6 +221,7 @@ struct TaskWrite: Encodable {
         try container.encode(title, forKey: .title)
         try container.encode(assignee, forKey: .assignee)
         try container.encode(dueOn, forKey: .dueOn)
+        try container.encode(cashCents, forKey: .cashCents)
     }
 }
 
@@ -272,5 +278,19 @@ struct HolidayWrite: Encodable {
         case name
         case startsOn = "starts_on"
         case endsOn = "ends_on"
+    }
+}
+
+/// A row of `inbox_items` as the bell needs it.
+struct InboxRow: Decodable {
+    let id: UUID
+    let sender: String
+    let subject: String
+    let link: String
+    let suggestion: SuggestionPayload?
+
+    func makeSuggestion() -> InboxSuggestion? {
+        guard let suggestion else { return nil }
+        return InboxSuggestion(id: id.uuidString, payload: suggestion, sender: sender, subject: subject, link: link)
     }
 }

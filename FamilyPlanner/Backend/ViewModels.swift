@@ -212,3 +212,46 @@ final class WeekViewModel: ObservableObject {
         return true
     }
 }
+
+/// The bell: open suggestions from the mails, and the decision on each of them.
+@MainActor
+final class InboxViewModel: ObservableObject {
+    @Published private(set) var suggestions: [InboxSuggestion] = []
+    @Published private(set) var errorMessage: String?
+
+    private let source: FamilyDataSource
+
+    init(source: FamilyDataSource) {
+        self.source = source
+    }
+
+    /// Number shown on the bell.
+    var count: Int { suggestions.count }
+
+    func load() async {
+        do {
+            suggestions = try await source.loadSuggestions()
+            errorMessage = nil
+        } catch {
+            errorMessage = "Vorschläge konnten nicht geladen werden."
+        }
+    }
+
+    /// Removes the suggestion right away and brings it back if saving the decision fails.
+    func decide(_ id: String, _ decision: SuggestionDecision) async {
+        let previous = suggestions
+        suggestions.removeAll { $0.id == id }
+        do {
+            try await source.decideSuggestion(id: id, decision: decision)
+            errorMessage = nil
+        } catch {
+            suggestions = previous
+            errorMessage = "Die Entscheidung konnte nicht gespeichert werden."
+        }
+    }
+
+    /// Hands the push address of this phone to the backend. Failing is not shown: the app works without push.
+    func registerDevice(token: String) async {
+        try? await source.registerDevice(token: token)
+    }
+}

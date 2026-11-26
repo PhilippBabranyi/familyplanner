@@ -79,7 +79,7 @@ private struct TaskCard: View {
                 .foregroundStyle(Theme.text)
                 .frame(maxWidth: .infinity, alignment: .leading)
             HStack {
-                Text("\(personName) · \(task.due)")
+                Text(detailText)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.text)
                 Spacer()
@@ -105,6 +105,13 @@ private struct TaskCard: View {
 
     private var personName: String {
         task.assignee ?? "Niemand"
+    }
+
+    /// "Alex · bis 4.12." and, if cash is needed, " · 5 €".
+    private var detailText: String {
+        let base = "\(personName) · \(task.due)"
+        guard let cents = task.cashCents else { return base }
+        return "\(base) · \(FormDates.text(fromCents: cents)) €"
     }
 }
 

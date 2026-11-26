@@ -1,3 +1,5 @@
+import Foundation
+
 /// Invented sample data. Real family data is never stored in this repository.
 enum DemoData {
     static let taskBoard = TaskBoard(tasks: [
@@ -65,6 +67,24 @@ enum DemoData {
             ]
         ]
     )
+
+    /// Two invented suggestions for the bell.
+    static let suggestions = [
+        InboxSuggestion(
+            id: "s1", kind: .task, title: "Kostümtag bei den Owls", date: "2026-12-04", time: nil,
+            amountCents: 500, currency: "GBP",
+            summary: "Am Freitag, 4. Dezember, ist Kostümtag. Ein Kostüm und 5 Pfund für die Spendenaktion mitgeben.",
+            sender: "teacher@school.example", subject: "Costume day",
+            link: URL(string: "https://mail.google.com/mail/#all/demo1")
+        ),
+        InboxSuggestion(
+            id: "s2", kind: .event, title: "Zoo-Ausflug", date: "2026-12-10", time: .at(9, 0),
+            amountCents: nil, currency: nil,
+            summary: "Die Klasse fährt in den Zoo. Brotzeit einpacken.",
+            sender: "teacher@school.example", subject: "Zoo trip",
+            link: URL(string: "https://mail.google.com/mail/#all/demo2")
+        )
+    ]
 
     static let members = [
         Member(id: "Alex", name: "Alex"),

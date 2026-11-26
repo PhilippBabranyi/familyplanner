@@ -21,6 +21,11 @@ targets:
       - FamilyPlanner
     dependencies:
       - package: Supabase
+    entitlements:
+      path: FamilyPlanner/FamilyPlanner.entitlements
+      properties:
+        # Push notifications. Xcode switches this to "production" when the app is distributed (TestFlight).
+        aps-environment: development
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: de.babranyi.familyplanner

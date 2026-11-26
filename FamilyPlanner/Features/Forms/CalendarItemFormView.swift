@@ -26,6 +26,7 @@ struct CalendarItemFormView: View {
         existing: StoredCalendarItem?,
         defaultDate: Date,
         members: [Member],
+        prefill: CalendarItemDraft? = nil,
         onSave: @escaping (CalendarItemDraft) async -> Bool,
         onDelete: @escaping (String) async -> Bool
     ) {
@@ -33,19 +34,20 @@ struct CalendarItemFormView: View {
         self.members = members
         self.onSave = onSave
         self.onDelete = onDelete
-        let start = FormDates.date(fromISO: existing?.startsOn) ?? defaultDate
+        // A suggestion from a mail fills the form of a new item; an existing item always wins.
+        let start = FormDates.date(fromISO: existing?.startsOn ?? prefill?.startsOn) ?? defaultDate
         let end = FormDates.date(fromISO: existing?.repeatUntil)
-        _title = State(initialValue: existing?.title ?? "")
-        _note = State(initialValue: existing?.note ?? "")
+        _title = State(initialValue: existing?.title ?? prefill?.title ?? "")
+        _note = State(initialValue: existing?.note ?? prefill?.note ?? "")
         _date = State(initialValue: start)
-        _time = State(initialValue: FormDates.date(from: existing?.time ?? .at(9, 0)))
+        _time = State(initialValue: FormDates.date(from: existing?.time ?? prefill?.time ?? .at(9, 0)))
         _isSeries = State(initialValue: existing?.isSeries ?? false)
         _weekdays = State(initialValue: existing?.weekdays ?? [])
         _hasEnd = State(initialValue: end != nil)
         _endDate = State(initialValue: end ?? Calendar.current.date(byAdding: .month, value: 3, to: start) ?? start)
         _skipHolidays = State(initialValue: existing?.skipHolidays ?? false)
-        _assigneeId = State(initialValue: existing?.assigneeId)
-        _cash = State(initialValue: FormDates.text(fromCents: existing?.cashCents))
+        _assigneeId = State(initialValue: existing?.assigneeId ?? prefill?.assigneeId)
+        _cash = State(initialValue: FormDates.text(fromCents: existing?.cashCents ?? prefill?.cashCents))
     }
 
     var body: some View {

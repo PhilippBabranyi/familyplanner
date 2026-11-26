@@ -40,6 +40,8 @@ struct TaskItem: Identifiable {
     /// Human-readable due date, e.g. "bis 28.11." or "ohne Datum".
     var due: String
     var status: TaskStatus
+    /// Cash needed for the task in cents, e.g. money to bring to school.
+    var cashCents: Int?
 }
 
 struct TaskBoard {
