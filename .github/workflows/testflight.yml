@@ -40,8 +40,9 @@ jobs:
           printf '%s\n' "$ASC_KEY_P8" > "$RUNNER_TEMP/keys/AuthKey.p8"
           chmod 600 "$RUNNER_TEMP/keys/AuthKey.p8"
 
-      # The archive is built unsigned. Signing with the distribution certificate and profile
-      # (created automatically through the API key) happens in the export step. This avoids
+      # The archive is signed ad hoc (no certificate, no profile): this embeds the app's entitlements, such as
+      # push notifications, which an unsigned build would drop. Signing with the distribution certificate and
+      # profile (created automatically through the API key) happens in the export step. This avoids
       # needing a registered device, which only development profiles require.
       - name: Archive
         run: |
@@ -51,11 +52,17 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/FamilyPlanner.xcarchive" \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
             DEVELOPMENT_TEAM="$TEAM_ID" \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}"
+
+      - name: Show the entitlements of the archived app
+        run: |
+          APP=$(ls -d "$RUNNER_TEMP"/FamilyPlanner.xcarchive/Products/Applications/*.app)
+          codesign -d --entitlements :- "$APP" || echo "no entitlements found in the archive"
 
       - name: Export and upload to TestFlight
         env:

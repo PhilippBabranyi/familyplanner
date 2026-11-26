@@ -34,6 +34,28 @@ struct RootView: View {
         }
         .task { await auth.start() }
         .onChange(of: auth.state) { _, _ in route = .start }
+        // Once per sign-in (not once per screen): load the bell and ask for push.
+        .task(id: auth.state) {
+            guard auth.state == .signedIn else { return }
+            await inbox.load()
+            await PushPermission.request()
+            openSuggestionsIfRequested()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active, auth.state == .signedIn else { return }
+            Task { await inbox.load() }
+            openSuggestionsIfRequested()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .pushTokenReceived)) { note in
+            guard let token = note.object as? String else { return }
+            Task { await inbox.registerDevice(token: token) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openSuggestions)) { _ in
+            if auth.state == .signedIn { openSuggestionsIfRequested() }
+        }
+        .sheet(isPresented: $showSuggestions) {
+            SuggestionsSheet(inbox: inbox, tasks: tasks, week: week)
+        }
     }
 
     @ViewBuilder
@@ -45,26 +67,6 @@ struct RootView: View {
             .overlay(alignment: .topTrailing) {
                 // The start screen has no top bar, but the bell must be reachable from there too.
                 if route == .start { bell.padding(.horizontal, 20).padding(.top, 4) }
-            }
-            .task {
-                await inbox.load()
-                await PushPermission.request()
-                openSuggestionsIfRequested()
-            }
-            .onChange(of: scenePhase) { _, phase in
-                guard phase == .active else { return }
-                Task { await inbox.load() }
-                openSuggestionsIfRequested()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .pushTokenReceived)) { note in
-                guard let token = note.object as? String else { return }
-                Task { await inbox.registerDevice(token: token) }
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .openSuggestions)) { _ in
-                openSuggestionsIfRequested()
-            }
-            .sheet(isPresented: $showSuggestions) {
-                SuggestionsSheet(inbox: inbox, tasks: tasks, week: week)
             }
         if route != .start {
             FloatingTabBar(selection: $route)
