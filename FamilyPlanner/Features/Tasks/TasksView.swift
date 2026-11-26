@@ -53,7 +53,7 @@ struct TasksView: View {
                 Button {
                     filter = status
                 } label: {
-                    Text("\(status.title) \(model.board.count(in: status))")
+                    Text("\(status.title) (\(model.board.count(in: status)))")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(isSelected ? Theme.text : Theme.muted)
                         .frame(maxWidth: .infinity, minHeight: 48)

@@ -1,5 +1,10 @@
 import Foundation
 
+/// True for errors that only say "this request was cancelled", which must not show an error banner.
+func isCancellation(_ error: Error) -> Bool {
+    error is CancellationError || (error as? URLError)?.code == .cancelled
+}
+
 @MainActor
 final class TasksViewModel: ObservableObject {
     @Published private(set) var board = TaskBoard(tasks: [])
@@ -19,6 +24,8 @@ final class TasksViewModel: ObservableObject {
             board = try await source.loadTasks()
             errorMessage = nil
         } catch {
+            // A request that was cancelled (the view went away, a newer load started) is not an error.
+            if isCancellation(error) { return }
             errorMessage = "Aufgaben konnten nicht geladen werden."
         }
     }
@@ -87,6 +94,8 @@ final class ShoppingViewModel: ObservableObject {
             list = try await source.loadShoppingList()
             errorMessage = nil
         } catch {
+            // A request that was cancelled (the view went away, a newer load started) is not an error.
+            if isCancellation(error) { return }
             errorMessage = "Einkaufsliste konnte nicht geladen werden."
         }
     }
@@ -205,6 +214,8 @@ final class WeekViewModel: ObservableObject {
             memberName = try await source.currentMemberName()
             errorMessage = nil
         } catch {
+            // A request that was cancelled (the view went away, a newer load started) is not an error.
+            if isCancellation(error) { return }
             errorMessage = "Der Wochenplan konnte nicht geladen werden."
         }
     }
@@ -273,6 +284,8 @@ final class InboxViewModel: ObservableObject {
             suggestions = try await source.loadSuggestions()
             errorMessage = nil
         } catch {
+            // A request that was cancelled (the view went away, a newer load started) is not an error.
+            if isCancellation(error) { return }
             errorMessage = "Vorschläge konnten nicht geladen werden."
         }
     }
