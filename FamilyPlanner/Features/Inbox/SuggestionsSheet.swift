@@ -32,7 +32,12 @@ struct SuggestionsSheet: View {
                             suggestion: suggestion,
                             accept: { accepting = suggestion },
                             dismiss: { Task { await inbox.decide(suggestion.id, .dismissed) } },
-                            openMail: { if let link = suggestion.link { openURL(link) } }
+                            openMail: {
+                                // Gmail's app cannot open one single mail from a link, so the subject is copied
+                                // for the search field there.
+                                UIPasteboard.general.string = suggestion.subject
+                                if let link = suggestion.link { openURL(link) }
+                            }
                         )
                     }
                 }
@@ -95,7 +100,8 @@ enum SuggestionDrafts {
     static func task(from suggestion: InboxSuggestion) -> TaskDraft {
         TaskDraft(
             id: nil, title: suggestion.title, assigneeId: nil, dueOn: suggestion.date,
-            cashCents: suggestion.amountCentsInEuro
+            cashCents: suggestion.amountCentsInEuro,
+            dueTime: suggestion.date == nil ? nil : suggestion.time?.description
         )
     }
 
@@ -149,6 +155,10 @@ private struct SuggestionCard: View {
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.muted)
                 .lineLimit(1)
+            Text("Betreff: \(suggestion.subject)")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.muted)
+                .lineLimit(2)
             HStack(spacing: 8) {
                 Button(action: accept) {
                     Text("Übernehmen")
@@ -180,7 +190,8 @@ private struct SuggestionCard: View {
                             .background(Theme.surface, in: Circle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Mail öffnen")
+                    .accessibilityLabel("Betreff kopieren und Gmail öffnen")
+                    .accessibilityIdentifier("suggestion-mail-\(suggestion.id)")
                 }
             }
         }

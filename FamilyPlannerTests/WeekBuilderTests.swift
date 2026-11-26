@@ -145,7 +145,7 @@ final class WeekBuilderTests: XCTestCase {
          "assignee":null,"cash_cents":null}
         """
         let row = try JSONDecoder().decode(CalendarItemRow.self, from: Data(json.utf8))
-        let stored = try XCTUnwrap(row.makeItem(memberNames: [:]))
+        let stored = try XCTUnwrap(row.makeItem(names: PeopleNames()))
         XCTAssertEqual(stored.time, .at(7, 30))
         XCTAssertEqual(stored.weekdays, [.monday, .friday])
         XCTAssertTrue(stored.skipHolidays)

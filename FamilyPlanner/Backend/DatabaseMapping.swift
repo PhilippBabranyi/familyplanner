@@ -55,14 +55,64 @@ struct TaskRow: Decodable {
     let id: UUID
     let title: String
     let assignee: UUID?
+    let assigneePerson: UUID?
     let dueOn: String?
+    let dueTime: String?
     let status: String
     let cashCents: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, title, assignee, status
+        case assigneePerson = "assignee_person"
         case dueOn = "due_on"
+        case dueTime = "due_time"
         case cashCents = "cash_cents"
+    }
+}
+
+/// A person of the household without an account (a child), as stored in `household_people`.
+struct PersonRow: Decodable {
+    let id: UUID
+    let displayName: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case displayName = "display_name"
+    }
+}
+
+/// Names of everyone who can be responsible for something, by the id the database stores.
+struct PeopleNames {
+    var members: [UUID: String] = [:]
+    var people: [UUID: String] = [:]
+
+    func name(member: UUID?, person: UUID?) -> String? {
+        if let member { return members[member] }
+        if let person { return people[person] }
+        return nil
+    }
+
+    /// The id the app uses for the picker: the user id, or `person:<id>` for a person without an account.
+    static func memberId(member: UUID?, person: UUID?) -> String? {
+        if let member { return member.uuidString }
+        if let person { return Member.personPrefix + person.uuidString }
+        return nil
+    }
+}
+
+/// Splits the id of a picked member into the two assignee columns.
+struct AssigneeColumns {
+    let member: String?
+    let person: String?
+
+    init(memberId: String?) {
+        if let person = Member.personId(from: memberId) {
+            member = nil
+            self.person = person
+        } else {
+            member = memberId
+            person = nil
+        }
     }
 }
 
@@ -103,13 +153,14 @@ struct NewShoppingRow: Encodable {
 }
 
 extension TaskRow {
-    func makeItem(memberNames: [UUID: String]) -> TaskItem {
+    func makeItem(names: PeopleNames) -> TaskItem {
         TaskItem(
             id: id.uuidString,
             title: title,
-            assignee: assignee.flatMap { memberNames[$0] },
-            assigneeId: assignee?.uuidString,
+            assignee: names.name(member: assignee, person: assigneePerson),
+            assigneeId: PeopleNames.memberId(member: assignee, person: assigneePerson),
             dueOn: dueOn,
+            dueTime: dueTime.flatMap { TimeOfDay(databaseValue: $0) }.map { $0.description },
             due: DueText.make(from: dueOn),
             status: TaskStatus(databaseValue: status) ?? .open,
             cashCents: cashCents
@@ -140,10 +191,12 @@ struct CalendarItemRow: Decodable {
     let repeatUntil: String?
     let skipHolidays: Bool
     let assignee: UUID?
+    let assigneePerson: UUID?
     let cashCents: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, title, note, assignee, weekdays
+        case assigneePerson = "assignee_person"
         case startsOn = "starts_on"
         case atTime = "at_time"
         case repeatUntil = "repeat_until"
@@ -151,7 +204,7 @@ struct CalendarItemRow: Decodable {
         case cashCents = "cash_cents"
     }
 
-    func makeItem(memberNames: [UUID: String]) -> StoredCalendarItem? {
+    func makeItem(names: PeopleNames) -> StoredCalendarItem? {
         guard let time = TimeOfDay(databaseValue: atTime) else { return nil }
         return StoredCalendarItem(
             id: id.uuidString,
@@ -162,8 +215,8 @@ struct CalendarItemRow: Decodable {
             weekdays: Set(weekdays.compactMap { Weekday(rawValue: $0) }),
             repeatUntil: repeatUntil,
             skipHolidays: skipHolidays,
-            assigneeId: assignee?.uuidString,
-            assignee: assignee.flatMap { memberNames[$0] },
+            assigneeId: PeopleNames.memberId(member: assignee, person: assigneePerson),
+            assignee: names.name(member: assignee, person: assigneePerson),
             cashCents: cashCents
         )
     }
@@ -204,13 +257,17 @@ struct TaskWrite: Encodable {
     let familyId: UUID?
     let title: String
     let assignee: String?
+    let assigneePerson: String?
     let dueOn: String?
+    let dueTime: String?
     let cashCents: Int?
 
     enum CodingKeys: String, CodingKey {
         case familyId = "family_id"
         case title, assignee
+        case assigneePerson = "assignee_person"
         case dueOn = "due_on"
+        case dueTime = "due_time"
         case cashCents = "cash_cents"
     }
 
@@ -220,7 +277,10 @@ struct TaskWrite: Encodable {
         if let familyId { try container.encode(familyId, forKey: .familyId) }
         try container.encode(title, forKey: .title)
         try container.encode(assignee, forKey: .assignee)
+        try container.encode(assigneePerson, forKey: .assigneePerson)
         try container.encode(dueOn, forKey: .dueOn)
+        // A time without a date is not allowed by the database.
+        try container.encode(dueOn == nil ? nil : dueTime, forKey: .dueTime)
         try container.encode(cashCents, forKey: .cashCents)
     }
 }
@@ -232,6 +292,7 @@ struct CalendarItemWrite: Encodable {
     enum CodingKeys: String, CodingKey {
         case familyId = "family_id"
         case title, note, assignee, weekdays
+        case assigneePerson = "assignee_person"
         case startsOn = "starts_on"
         case atTime = "at_time"
         case repeatUntil = "repeat_until"
@@ -250,7 +311,9 @@ struct CalendarItemWrite: Encodable {
         try container.encode(draft.weekdays.map(\.rawValue).sorted(), forKey: .weekdays)
         try container.encode(draft.repeatUntil, forKey: .repeatUntil)
         try container.encode(draft.skipHolidays, forKey: .skipHolidays)
-        try container.encode(draft.assigneeId, forKey: .assignee)
+        let columns = AssigneeColumns(memberId: draft.assigneeId)
+        try container.encode(columns.member, forKey: .assignee)
+        try container.encode(columns.person, forKey: .assigneePerson)
         try container.encode(draft.cashCents, forKey: .cashCents)
     }
 }

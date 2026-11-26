@@ -37,6 +37,8 @@ struct TaskItem: Identifiable {
     var assigneeId: String?
     /// Due date as `yyyy-MM-dd`, nil if there is none.
     var dueOn: String?
+    /// Time of day of the deadline, `HH:mm`, only together with a date.
+    var dueTime: String?
     /// Human-readable due date, e.g. "bis 28.11." or "ohne Datum".
     var due: String
     var status: TaskStatus

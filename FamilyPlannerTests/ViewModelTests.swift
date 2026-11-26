@@ -2,7 +2,12 @@ import XCTest
 @testable import FamilyPlanner
 
 private actor FailingSource: FamilyDataSource {
-    private let error = URLError(.notConnectedToInternet)
+    private let error: Error
+
+    init(error: Error = URLError(.notConnectedToInternet)) {
+        self.error = error
+    }
+
     func loadTasks() async throws -> TaskBoard { throw error }
     func setTaskStatus(id: String, status: TaskStatus) async throws { throw error }
     func saveTask(_ draft: TaskDraft) async throws { throw error }
@@ -60,6 +65,17 @@ final class ViewModelTests: XCTestCase {
         let model = TasksViewModel(source: FailingSource())
         await model.load()
         XCTAssertEqual(model.errorMessage, "Aufgaben konnten nicht geladen werden.")
+    }
+
+    func testCancelledLoadShowsNoError() async {
+        for error in [CancellationError() as Error, URLError(.cancelled)] {
+            let model = TasksViewModel(source: FailingSource(error: error))
+            await model.load()
+            XCTAssertNil(model.errorMessage)
+            let week = WeekViewModel(source: FailingSource(error: error))
+            await week.load()
+            XCTAssertNil(week.errorMessage)
+        }
     }
 
     func testNewTaskIsSavedWithTrimmedTitleAndAssignee() async {
@@ -182,7 +198,7 @@ final class DatabaseMappingTests: XCTestCase {
          "due_on":"2026-11-26","status":"doing"}
         """
         let row = try JSONDecoder().decode(TaskRow.self, from: Data(json.utf8))
-        let item = row.makeItem(memberNames: [userId: "Sam"])
+        let item = row.makeItem(names: PeopleNames(members: [userId: "Sam"]))
         XCTAssertEqual(item.assignee, "Sam")
         XCTAssertEqual(item.due, "bis 26.11.")
         XCTAssertEqual(item.status, .doing)

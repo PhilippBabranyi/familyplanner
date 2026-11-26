@@ -53,7 +53,7 @@ struct TasksView: View {
                 Button {
                     filter = status
                 } label: {
-                    Text("\(status.title) \(model.board.count(in: status))")
+                    Text("\(status.title) (\(model.board.count(in: status)))")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(isSelected ? Theme.text : Theme.muted)
                         .frame(maxWidth: .infinity, minHeight: 48)
@@ -109,7 +109,7 @@ private struct TaskCard: View {
 
     /// "Alex · bis 4.12." and, if cash is needed, " · 5 €".
     private var detailText: String {
-        let base = "\(personName) · \(task.due)"
+        let base = "\(personName) · \(task.due)" + (task.dueTime.map { " \($0) Uhr" } ?? "")
         guard let cents = task.cashCents else { return base }
         return "\(base) · \(FormDates.text(fromCents: cents)) €"
     }

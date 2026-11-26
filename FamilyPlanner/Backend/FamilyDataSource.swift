@@ -57,12 +57,14 @@ actor DemoDataSource: FamilyDataSource {
             board.tasks[index].assignee = name
             board.tasks[index].assigneeId = draft.assigneeId
             board.tasks[index].dueOn = draft.dueOn
+            board.tasks[index].dueTime = draft.dueOn == nil ? nil : draft.dueTime
             board.tasks[index].due = due
             board.tasks[index].cashCents = draft.cashCents
         } else {
             board.tasks.append(TaskItem(
                 id: UUID().uuidString, title: draft.title, assignee: name, assigneeId: draft.assigneeId,
-                dueOn: draft.dueOn, due: due, status: .open, cashCents: draft.cashCents
+                dueOn: draft.dueOn, dueTime: draft.dueOn == nil ? nil : draft.dueTime, due: due, status: .open,
+                cashCents: draft.cashCents
             ))
         }
     }
