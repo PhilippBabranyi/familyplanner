@@ -273,6 +273,32 @@ final class WeekViewModelTests: XCTestCase {
         XCTAssertEqual(model.dayNumber(.sunday), 29)
     }
 
+    func testWeekNavigationLeavesTodayUntouched() async {
+        let today = WeekBuilder.date(fromISO: "2026-11-24", calendar: WeekBuilder.calendar()) ?? Date()
+        let model = WeekViewModel(source: DemoDataSource(), now: today)
+        XCTAssertTrue(model.isShowingCurrentWeek)
+        model.showWeek(offsetBy: 1)
+        XCTAssertFalse(model.isShowingCurrentWeek)
+        XCTAssertEqual(model.shownWeekOffset, 1)
+        XCTAssertEqual(model.shownDayNumber(.monday), 30)
+        model.showWeek(offsetBy: -3)
+        XCTAssertEqual(model.shownWeekOffset, -2)
+        XCTAssertEqual(model.shownDayNumber(.monday), 9)
+        // The current week, which "Heute" shows, did not move.
+        XCTAssertEqual(model.dayNumber(.monday), 23)
+        model.showCurrentWeek()
+        XCTAssertTrue(model.isShowingCurrentWeek)
+    }
+
+    func testJumpToADateShowsItsWeek() {
+        let today = WeekBuilder.date(fromISO: "2026-11-24", calendar: WeekBuilder.calendar()) ?? Date()
+        let model = WeekViewModel(source: DemoDataSource(), now: today)
+        let target = WeekBuilder.date(fromISO: "2026-12-24", calendar: WeekBuilder.calendar()) ?? Date()
+        model.showWeek(containing: target)
+        XCTAssertEqual(model.shownDayNumber(.thursday), 24)
+        XCTAssertEqual(model.shownWeekOffset, 4)
+    }
+
     // MARK: Mail suggestions
 
     func testSuggestionsLoadAndDeciding() async {

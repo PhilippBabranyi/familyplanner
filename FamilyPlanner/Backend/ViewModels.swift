@@ -127,7 +127,10 @@ final class WeekViewModel: ObservableObject {
     @Published private(set) var memberName: String?
     @Published private(set) var errorMessage: String?
 
+    /// The week of today. Today's screen and the pickup logic always work on this week.
     let weekStart: Date
+    /// The week the week screen currently shows; the person can leave the current week.
+    @Published private(set) var shownWeekStart: Date
     let today: Date
     private let source: FamilyDataSource
     private let calendar = WeekBuilder.calendar()
@@ -135,7 +138,44 @@ final class WeekViewModel: ObservableObject {
     init(source: FamilyDataSource, now: Date = Date()) {
         self.source = source
         self.today = now
-        self.weekStart = WeekBuilder.weekStart(containing: now, calendar: WeekBuilder.calendar())
+        let start = WeekBuilder.weekStart(containing: now, calendar: WeekBuilder.calendar())
+        self.weekStart = start
+        self.shownWeekStart = start
+    }
+
+    /// The plan of the week that the week screen shows.
+    var shownPlan: WeekPlan {
+        WeekBuilder.plan(data: data, weekStart: shownWeekStart, calendar: calendar)
+    }
+
+    var isShowingCurrentWeek: Bool { shownWeekStart == weekStart }
+
+    /// Whole weeks between the current week and the shown one (negative: in the past).
+    var shownWeekOffset: Int {
+        let days = calendar.dateComponents([.day], from: weekStart, to: shownWeekStart).day ?? 0
+        return Int((Double(days) / 7).rounded())
+    }
+
+    func showWeek(offsetBy weeks: Int) {
+        if let next = calendar.date(byAdding: .day, value: 7 * weeks, to: shownWeekStart) {
+            shownWeekStart = next
+        }
+    }
+
+    func showWeek(containing date: Date) {
+        shownWeekStart = WeekBuilder.weekStart(containing: date, calendar: calendar)
+    }
+
+    func showCurrentWeek() {
+        shownWeekStart = weekStart
+    }
+
+    func shownDate(of day: Weekday) -> Date {
+        WeekBuilder.date(of: day, weekStart: shownWeekStart, calendar: calendar)
+    }
+
+    func shownDayNumber(_ day: Weekday) -> Int {
+        calendar.component(.day, from: shownDate(of: day))
     }
 
     var todayWeekday: Weekday {

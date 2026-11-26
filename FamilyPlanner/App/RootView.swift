@@ -37,6 +37,7 @@ struct RootView: View {
         // Once per sign-in (not once per screen): load the bell and ask for push.
         .task(id: auth.state) {
             guard auth.state == .signedIn else { return }
+            await week.load()
             await inbox.load()
             await PushPermission.request()
             openSuggestionsIfRequested()
@@ -68,11 +69,10 @@ struct RootView: View {
                 // The start screen has no top bar, but the bell must be reachable from there too.
                 if route == .start { bell.padding(.horizontal, 20).padding(.top, 4) }
             }
-        if route != .start {
-            FloatingTabBar(selection: $route)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 8)
-        }
+        // The menu stays reachable from the start screen too (no tab is highlighted there).
+        FloatingTabBar(selection: $route)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 8)
     }
 
     private var bell: some View {
@@ -112,7 +112,7 @@ struct RootView: View {
     private var content: some View {
         switch route {
         case .start:
-            StartView { route = $0 }
+            StartView(name: week.memberName) { route = $0 }
         case .today:
             TodayView(model: week)
         case .week:

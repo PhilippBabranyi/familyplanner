@@ -90,27 +90,18 @@ struct SuggestionsSheet: View {
     }
 }
 
-/// How a suggestion fills the forms. An amount in a foreign currency is not converted: it stays visible in the
-/// title or note, and the cash field stays empty.
+/// How a suggestion fills the forms. Amounts always go into the cash field, in euros.
 enum SuggestionDrafts {
     static func task(from suggestion: InboxSuggestion) -> TaskDraft {
-        var title = suggestion.title
-        if suggestion.amountCents != nil, suggestion.amountCentsInEuro == nil, let text = suggestion.amountText {
-            title += " (\(text))"
-        }
-        return TaskDraft(
-            id: nil, title: title, assigneeId: nil, dueOn: suggestion.date,
+        TaskDraft(
+            id: nil, title: suggestion.title, assigneeId: nil, dueOn: suggestion.date,
             cashCents: suggestion.amountCentsInEuro
         )
     }
 
     static func event(from suggestion: InboxSuggestion) -> CalendarItemDraft {
-        var note = ""
-        if suggestion.amountCents != nil, suggestion.amountCentsInEuro == nil, let text = suggestion.amountText {
-            note = "Mitbringen: \(text)"
-        }
-        return CalendarItemDraft(
-            id: nil, title: suggestion.title, note: note,
+        CalendarItemDraft(
+            id: nil, title: suggestion.title, note: "",
             startsOn: suggestion.date ?? FormDates.iso(Date()), time: suggestion.time ?? .at(9, 0),
             weekdays: [], repeatUntil: nil, skipHolidays: false, assigneeId: nil,
             cashCents: suggestion.amountCentsInEuro
