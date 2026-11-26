@@ -143,7 +143,10 @@ actor SupabaseDataSource: FamilyDataSource {
             pickups: pickups,
             holidays: holidayRows.map { $0.makeHoliday() },
             pickupDrivers: Dictionary(driverRows.map { ($0.day, $0.driverId) }, uniquingKeysWith: { _, last in last }),
-            pickupOverrides: Dictionary(overrideRows.map { ($0.day, $0.override) }, uniquingKeysWith: { _, last in last }),
+            pickupOverrides: Dictionary(
+                overrideRows.map { ($0.day, $0.override) },
+                uniquingKeysWith: { _, last in last }
+            ),
             remindMinutes: reminderRows.first?.remindMinutes ?? 30
         )
     }
