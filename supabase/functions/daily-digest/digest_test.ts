@@ -72,6 +72,7 @@ const data: FamilyData = {
   ],
   pickups: { 1: "15:20:00", 4: "16:20:00" },
   pickupRemind: { 1: 30, 4: 45 },
+  pickupOverrides: { "2026-12-14": "13:00:00", "2026-12-15": null },
   pickupDrivers: { "2026-12-03": { id: "u-sam", name: "Sam" } },
   holidays: [{ name: "Herbstferien", startsOn: "2026-12-10", endsOn: "2026-12-12" }],
   tasks: [
@@ -122,7 +123,7 @@ Deno.test("the evening message talks about tomorrow and leaves out overdue tasks
 
 Deno.test("an empty day gets a friendly line", () => {
   const empty: FamilyData = {
-    items: [], pickups: {}, pickupRemind: {}, pickupDrivers: {}, holidays: [], tasks: [],
+    items: [], pickups: {}, pickupRemind: {}, pickupDrivers: {}, pickupOverrides: {}, holidays: [], tasks: [],
   };
   assertEquals(buildDigest("morning", planDay(empty, "2026-12-05"), () => 0).body, "Heute steht nichts an. Einen schönen Tag!");
   assertEquals(buildDigest("evening", planDay(empty, "2026-12-05"), () => 0).body, "Morgen steht nichts an. Gute Nacht!");
@@ -134,7 +135,7 @@ Deno.test("long days are shortened", () => {
       title: `Termin ${i}`, startsOn: "2026-12-05", atTime: `1${i}:00:00`, weekdays: [], repeatUntil: null,
       skipHolidays: false, assignee: null, cashCents: null,
     })),
-    pickups: {}, pickupRemind: {}, pickupDrivers: {}, holidays: [], tasks: [],
+    pickups: {}, pickupRemind: {}, pickupDrivers: {}, pickupOverrides: {}, holidays: [], tasks: [],
   };
   const { body } = buildDigest("morning", planDay(many, "2026-12-05"), () => 0);
   assertStringIncludes(body, "… und 3 weitere Termine");
@@ -181,4 +182,27 @@ Deno.test("no reminder without a driver, without a pickup or on a holiday", () =
   assertEquals(pickupReminder(data, tuesday), null);
   const holiday: FamilyData = { ...data, pickupDrivers: { "2026-12-10": { id: "u-sam", name: "Sam" } } };
   assertEquals(pickupReminder(holiday, { date: "2026-12-10", weekday: 4, minutes: 16 * 60 }), null);
+});
+
+Deno.test("a change for one day replaces the weekly pickup time, and can cancel it", () => {
+  // 2026-12-14 is a Monday (weekly 15:20), 2026-12-15 a Tuesday without a weekly pickup.
+  assertEquals(planDay(data, "2026-12-07").pickup, "15:20");
+  assertEquals(planDay(data, "2026-12-14").pickup, "13:00");
+  assertEquals(planDay(data, "2026-12-15").pickup, null);
+  const cancelledMonday: FamilyData = { ...data, pickupOverrides: { "2026-12-07": null } };
+  assertEquals(planDay(cancelledMonday, "2026-12-07").pickup, null);
+  assertEquals(planDay(cancelledMonday, "2026-12-14").pickup, "15:20");
+});
+
+Deno.test("the reminder follows the changed time and stays away on a cancelled day", () => {
+  const changed: FamilyData = {
+    ...data,
+    pickupOverrides: { "2026-12-03": "13:00:00" },
+  };
+  // Changed from 16:20 to 13:00, lead time 45 minutes: from 12:15.
+  assertEquals(pickupReminder(changed, thursday(12, 14)), null);
+  assertEquals(pickupReminder(changed, thursday(12, 15))?.driverId, "u-sam");
+  assertEquals(pickupReminder(changed, thursday(15, 35)), null);
+  const cancelled: FamilyData = { ...data, pickupOverrides: { "2026-12-03": null } };
+  assertEquals(pickupReminder(cancelled, thursday(15, 35)), null);
 });

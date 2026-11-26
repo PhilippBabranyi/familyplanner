@@ -21,6 +21,8 @@ protocol FamilyDataSource {
     func setPickupTimes(_ times: [Weekday: TimeOfDay]) async throws
     /// Who picks up on a day (`yyyy-MM-dd`); nil removes the entry, so that nobody is entered.
     func setPickupDriver(day: String, memberId: String?) async throws
+    /// Changes the pickup on a single day (`yyyy-MM-dd`); nil goes back to the weekly pickup time.
+    func setPickupOverride(day: String, override: PickupOverride?) async throws
     /// Minutes before the pickup at which the reminder comes.
     func setPickupReminder(minutes: Int) async throws
     func addHoliday(name: String, startsOn: String, endsOn: String) async throws
@@ -117,6 +119,10 @@ actor DemoDataSource: FamilyDataSource {
 
     func setPickupDriver(day: String, memberId: String?) async throws {
         calendar.pickupDrivers[day] = memberId
+    }
+
+    func setPickupOverride(day: String, override: PickupOverride?) async throws {
+        calendar.pickupOverrides[day] = override
     }
 
     func setPickupReminder(minutes: Int) async throws {

@@ -50,6 +50,14 @@ struct Holiday: Identifiable, Equatable {
     }
 }
 
+/// A pickup that differs on a single day, like one changed occurrence of a series.
+enum PickupOverride: Equatable {
+    /// The pickup is at this time on that day.
+    case time(TimeOfDay)
+    /// There is no pickup on that day.
+    case cancelled
+}
+
 /// Everything the week and today screens are built from.
 struct CalendarData {
     var items: [StoredCalendarItem] = []
@@ -57,6 +65,8 @@ struct CalendarData {
     var holidays: [Holiday] = []
     /// Account (member id) that picks up on a day, by `yyyy-MM-dd`. A missing day means nobody is entered yet.
     var pickupDrivers: [String: String] = [:]
+    /// Changes of the pickup on single days, by `yyyy-MM-dd`.
+    var pickupOverrides: [String: PickupOverride] = [:]
     /// Minutes before the pickup at which the person who picks up gets the reminder.
     var remindMinutes = 30
 }

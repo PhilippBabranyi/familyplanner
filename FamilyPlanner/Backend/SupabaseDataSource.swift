@@ -132,6 +132,9 @@ actor SupabaseDataSource: FamilyDataSource {
         let driverRows: [PickupDriverRow] = (try? await client.from("pickup_drivers")
             .select("day,driver")
             .execute().value) ?? []
+        let overrideRows: [PickupOverrideRow] = (try? await client.from("pickup_overrides")
+            .select("day,pickup_time")
+            .execute().value) ?? []
         let reminderRows: [PickupReminderRow] = (try? await client.from("pickup_times")
             .select("remind_minutes")
             .execute().value) ?? []
@@ -140,6 +143,10 @@ actor SupabaseDataSource: FamilyDataSource {
             pickups: pickups,
             holidays: holidayRows.map { $0.makeHoliday() },
             pickupDrivers: Dictionary(driverRows.map { ($0.day, $0.driverId) }, uniquingKeysWith: { _, last in last }),
+            pickupOverrides: Dictionary(
+                overrideRows.map { ($0.day, $0.override) },
+                uniquingKeysWith: { _, last in last }
+            ),
             remindMinutes: reminderRows.first?.remindMinutes ?? 30
         )
     }
@@ -182,6 +189,17 @@ actor SupabaseDataSource: FamilyDataSource {
         guard let driver = UUID(uuidString: memberId) else { return }
         let write = PickupDriverWrite(familyId: try await familyId(), day: day, driver: driver.uuidString.lowercased())
         try await client.from("pickup_drivers").upsert(write, onConflict: "family_id,day").execute()
+    }
+
+    func setPickupOverride(day: String, override: PickupOverride?) async throws {
+        guard let override else {
+            try await client.from("pickup_overrides").delete().eq("day", value: day).execute()
+            return
+        }
+        var time: String?
+        if case let .time(value) = override { time = value.databaseValue }
+        let write = PickupOverrideWrite(familyId: try await familyId(), day: day, pickupTime: time)
+        try await client.from("pickup_overrides").upsert(write, onConflict: "family_id,day").execute()
     }
 
     func setPickupReminder(minutes: Int) async throws {

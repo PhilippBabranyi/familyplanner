@@ -25,6 +25,17 @@ struct WeekPlan {
     var holidays: [Weekday: String] = [:]
     /// Account (member id) that picks up, by weekday of this week. A missing day means nobody is entered yet.
     var driverByDay: [Weekday: String] = [:]
+    /// Changes of the pickup on single days of this week.
+    var overrideByDay: [Weekday: PickupOverride] = [:]
+
+    /// The pickup time of a day: the change for that day if there is one, otherwise the weekly time.
+    func pickupTime(on day: Weekday) -> TimeOfDay? {
+        switch overrideByDay[day] {
+        case let .time(time)?: return time
+        case .cancelled?: return nil
+        case nil: return pickup.time(on: day)
+        }
+    }
 
     /// Items of a day, earliest first.
     func items(on day: Weekday) -> [WeekItem] {

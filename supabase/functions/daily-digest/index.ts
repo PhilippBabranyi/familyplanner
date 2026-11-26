@@ -142,7 +142,7 @@ async function createStore(): Promise<Store> {
       return (data ?? []).map((row) => row.id as string);
     },
     async loadFamilyData(familyId) {
-      const [items, pickups, holidays, tasks, accounts, people, drivers] = await Promise.all([
+      const [items, pickups, holidays, tasks, accounts, people, drivers, overrides] = await Promise.all([
         client.from("calendar_items")
           .select("title,starts_on,at_time,weekdays,repeat_until,skip_holidays,assignee,assignee_person,cash_cents")
           .eq("family_id", familyId),
@@ -154,8 +154,11 @@ async function createStore(): Promise<Store> {
         client.from("family_members").select("user_id,display_name").eq("family_id", familyId),
         client.from("household_people").select("id,display_name").eq("family_id", familyId),
         client.from("pickup_drivers").select("day,driver").eq("family_id", familyId).gte("day", yesterday()),
+        client.from("pickup_overrides").select("day,pickup_time").eq("family_id", familyId).gte("day", yesterday()),
       ]);
-      for (const result of [items, pickups, holidays, tasks, accounts, people, drivers]) fail(result.error);
+      for (const result of [items, pickups, holidays, tasks, accounts, people, drivers, overrides]) {
+        fail(result.error);
+      }
       const names = new Map<string, string>();
       for (const row of accounts.data ?? []) names.set(row.user_id as string, row.display_name as string);
       for (const row of people.data ?? []) names.set(row.id as string, row.display_name as string);
@@ -166,6 +169,8 @@ async function createStore(): Promise<Store> {
         pickupTimes[row.weekday as number] = row.pickup_time as string;
         pickupRemind[row.weekday as number] = row.remind_minutes as number;
       }
+      const pickupOverrides: Record<string, string | null> = {};
+      for (const row of overrides.data ?? []) pickupOverrides[row.day as string] = (row.pickup_time as string | null) ?? null;
       const pickupDrivers: Record<string, { id: string; name: string }> = {};
       for (const row of drivers.data ?? []) {
         const id = row.driver as string;
@@ -185,6 +190,7 @@ async function createStore(): Promise<Store> {
         pickups: pickupTimes,
         pickupRemind,
         pickupDrivers,
+        pickupOverrides,
         holidays: (holidays.data ?? []).map((row) => ({
           name: row.name as string,
           startsOn: row.starts_on as string,

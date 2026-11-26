@@ -222,44 +222,6 @@ struct CalendarItemRow: Decodable {
     }
 }
 
-struct PickupRow: Decodable {
-    let weekday: Int
-    let pickupTime: String
-
-    enum CodingKeys: String, CodingKey {
-        case weekday
-        case pickupTime = "pickup_time"
-    }
-}
-
-struct PickupReminderRow: Decodable {
-    let remindMinutes: Int
-
-    enum CodingKeys: String, CodingKey {
-        case remindMinutes = "remind_minutes"
-    }
-}
-
-struct PickupDriverRow: Decodable {
-    let day: String
-    let driver: UUID
-
-    /// The id the app uses for this member (UUID.uuidString, upper case), so that the name can be found.
-    var driverId: String { driver.uuidString }
-}
-
-struct PickupDriverWrite: Encodable {
-    let familyId: UUID
-    let day: String
-    let driver: String
-
-    enum CodingKeys: String, CodingKey {
-        case familyId = "family_id"
-        case day
-        case driver
-    }
-}
-
 struct HolidayRow: Decodable {
     let id: UUID
     let name: String
@@ -343,18 +305,6 @@ struct CalendarItemWrite: Encodable {
         try container.encode(columns.member, forKey: .assignee)
         try container.encode(columns.person, forKey: .assigneePerson)
         try container.encode(draft.cashCents, forKey: .cashCents)
-    }
-}
-
-struct PickupWrite: Encodable {
-    let familyId: UUID
-    let weekday: Int
-    let pickupTime: String
-
-    enum CodingKeys: String, CodingKey {
-        case familyId = "family_id"
-        case weekday
-        case pickupTime = "pickup_time"
     }
 }
 

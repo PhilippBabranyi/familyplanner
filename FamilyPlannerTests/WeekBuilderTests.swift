@@ -170,4 +170,37 @@ final class WeekBuilderTests: XCTestCase {
         let row = try JSONDecoder().decode(PickupDriverRow.self, from: Data(json.utf8))
         XCTAssertEqual(row.driverId, id.uuidString)
     }
+
+    func testPickupChangeOfOneDayReplacesTheWeeklyTimeOrCancelsIt() {
+        let data = CalendarData(
+            pickups: [.monday: .at(15, 20), .tuesday: .at(15, 20), .thursday: .at(16, 20)],
+            pickupOverrides: [
+                "2026-11-23": .time(.at(13, 0)),
+                "2026-11-24": .cancelled,
+                "2026-11-27": .time(.at(14, 0))
+            ]
+        )
+        let result = WeekBuilder.plan(data: data, weekStart: date("2026-11-23"), calendar: calendar)
+        XCTAssertEqual(result.pickupTime(on: .monday), .at(13, 0))
+        XCTAssertNil(result.pickupTime(on: .tuesday))
+        XCTAssertEqual(result.pickupTime(on: .thursday), .at(16, 20))
+        // Friday has no weekly pickup, but a change for that day makes one.
+        XCTAssertEqual(result.pickupTime(on: .friday), .at(14, 0))
+    }
+
+    func testPickupChangeRowsDecodeAndEncode() throws {
+        let timed = try JSONDecoder().decode(
+            PickupOverrideRow.self, from: Data(#"{"day":"2026-11-26","pickup_time":"13:00:00"}"#.utf8)
+        )
+        XCTAssertEqual(timed.override, .time(.at(13, 0)))
+        let cancelled = try JSONDecoder().decode(
+            PickupOverrideRow.self, from: Data(#"{"day":"2026-11-26","pickup_time":null}"#.utf8)
+        )
+        XCTAssertEqual(cancelled.override, .cancelled)
+        // "No pickup" must be sent as an explicit null, otherwise an upsert keeps the old time.
+        let write = PickupOverrideWrite(familyId: UUID(), day: "2026-11-26", pickupTime: nil)
+        let data = try JSONEncoder().encode(write)
+        let text = try XCTUnwrap(String(bytes: data, encoding: .utf8))
+        XCTAssertTrue(text.contains(#""pickup_time":null"#))
+    }
 }

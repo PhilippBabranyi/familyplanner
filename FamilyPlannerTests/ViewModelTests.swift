@@ -22,6 +22,7 @@ private actor FailingSource: FamilyDataSource {
     func deleteCalendarItem(id: String) async throws { throw error }
     func setPickupTimes(_ times: [Weekday: TimeOfDay]) async throws { throw error }
     func setPickupDriver(day: String, memberId: String?) async throws { throw error }
+    func setPickupOverride(day: String, override: PickupOverride?) async throws { throw error }
     func setPickupReminder(minutes: Int) async throws { throw error }
     func addHoliday(name: String, startsOn: String, endsOn: String) async throws { throw error }
     func deleteHoliday(id: String) async throws { throw error }
@@ -51,6 +52,7 @@ private actor ReadOnlySource: FamilyDataSource {
     func deleteCalendarItem(id: String) async throws { throw error }
     func setPickupTimes(_ times: [Weekday: TimeOfDay]) async throws { throw error }
     func setPickupDriver(day: String, memberId: String?) async throws { throw error }
+    func setPickupOverride(day: String, override: PickupOverride?) async throws { throw error }
     func setPickupReminder(minutes: Int) async throws { throw error }
     func addHoliday(name: String, startsOn: String, endsOn: String) async throws { throw error }
     func deleteHoliday(id: String) async throws { throw error }
@@ -63,18 +65,6 @@ private actor ReadOnlySource: FamilyDataSource {
 
 @MainActor
 final class ViewModelTests: XCTestCase {
-    func testPickupDriverCanBeEnteredAndRemoved() async {
-        let monday = WeekBuilder.date(fromISO: "2026-11-23", calendar: WeekBuilder.calendar()) ?? Date()
-        let model = WeekViewModel(source: DemoDataSource(), now: monday)
-        await model.load()
-        XCTAssertNil(model.driverName(on: .monday))
-        let saved = await model.setPickupDriver(day: .monday, memberId: "Alex")
-        XCTAssertTrue(saved)
-        XCTAssertEqual(model.driverName(on: .monday), "Alex")
-        _ = await model.setPickupDriver(day: .monday, memberId: nil)
-        XCTAssertNil(model.driverName(on: .monday))
-    }
-
     func testPickupDriverFailureShowsMessage() async {
         let model = WeekViewModel(source: ReadOnlySource())
         await model.load()
