@@ -110,7 +110,8 @@ actor SupabaseDataSource: FamilyDataSource {
     func loadCalendar() async throws -> CalendarData {
         let rows: [CalendarItemRow] = try await client.from("calendar_items")
             .select(
-                "id,title,note,starts_on,at_time,weekdays,repeat_until,skip_holidays,assignee,assignee_person,cash_cents"
+                "id,title,note,starts_on,at_time,weekdays,repeat_until,skip_holidays,"
+                    + "assignee,assignee_person,cash_cents"
             )
             .execute().value
         let pickupRows: [PickupRow] = try await client.from("pickup_times")
