@@ -39,4 +39,15 @@ final class PickupTests: XCTestCase {
         _ = await model.setPickupOverride(day: .monday, override: .cancelled)
         XCTAssertNil(model.todayPickup)
     }
+
+    func testNextItemTodayIsTheFirstOneThatHasNotStarted() async throws {
+        // Thursday 2026-11-26 has the ballet at 15:30 in the demo week.
+        let thursday = try XCTUnwrap(WeekBuilder.date(fromISO: "2026-11-26", calendar: WeekBuilder.calendar()))
+        let model = WeekViewModel(source: DemoDataSource(), now: thursday)
+        await model.load()
+        let morning = try XCTUnwrap(WeekBuilder.calendar().date(bySettingHour: 9, minute: 0, second: 0, of: thursday))
+        XCTAssertEqual(model.nextItemToday(at: morning)?.title, "Ballett")
+        let evening = try XCTUnwrap(WeekBuilder.calendar().date(bySettingHour: 21, minute: 0, second: 0, of: thursday))
+        XCTAssertNil(model.nextItemToday(at: evening))
+    }
 }
