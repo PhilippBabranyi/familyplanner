@@ -242,7 +242,10 @@ struct PickupReminderRow: Decodable {
 
 struct PickupDriverRow: Decodable {
     let day: String
-    let driver: String
+    let driver: UUID
+
+    /// The id the app uses for this member (UUID.uuidString, upper case), so that the name can be found.
+    var driverId: String { driver.uuidString }
 }
 
 struct PickupDriverWrite: Encodable {
