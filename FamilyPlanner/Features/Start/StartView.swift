@@ -55,7 +55,7 @@ struct StartView: View {
                 greetingCard
                     .padding(.horizontal, 20)
                     .frame(maxHeight: .infinity, alignment: .bottom)
-                    .padding(.bottom, 16)
+                    .padding(.bottom, 16 + 74) // room for the tab bar
             }
         }
     }
