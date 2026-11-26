@@ -198,7 +198,7 @@ final class DatabaseMappingTests: XCTestCase {
          "due_on":"2026-11-26","status":"doing"}
         """
         let row = try JSONDecoder().decode(TaskRow.self, from: Data(json.utf8))
-        let item = row.makeItem(memberNames: [userId: "Sam"])
+        let item = row.makeItem(names: PeopleNames(members: [userId: "Sam"]))
         XCTAssertEqual(item.assignee, "Sam")
         XCTAssertEqual(item.due, "bis 26.11.")
         XCTAssertEqual(item.status, .doing)
