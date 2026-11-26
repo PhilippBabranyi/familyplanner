@@ -4,6 +4,7 @@ import {
   AnalysisUnavailable,
   type AnalyzeInput,
   buildUserMessage,
+  checkSuggestion,
   createAnthropicAnalyzer,
   parseModelAnswer,
   type Suggestion,
@@ -55,8 +56,21 @@ Deno.test("unusable suggestions are rejected", () => {
   assertEquals(validateSuggestion({ ...good, date: "2026-13-45" }), null);
   assertEquals(validateSuggestion({ ...good, time: "25:00" }), null);
   assertEquals(validateSuggestion({ ...good, amount: -3 }), null);
-  assertEquals(validateSuggestion({ ...good, amount: "5" }), null);
+  assertEquals(validateSuggestion({ ...good, amount: "five" }), null);
   assertEquals(validateSuggestion({ ...good, currency: "pounds" }), null);
+});
+
+Deno.test("harmless deviations are tolerated", () => {
+  const result = validateSuggestion({ ...good, amount: "5,50", currency: "gbp", date: "", time: "" });
+  assertEquals(result?.amount, 5.5);
+  assertEquals(result?.currency, "GBP");
+  assertEquals(result?.date, null);
+});
+
+Deno.test("the reason for a rejection names the field but not its content", () => {
+  assertEquals(checkSuggestion({ ...good, date: "secret-date" }), { ok: false, reason: "date" });
+  assertEquals(checkSuggestion({ ...good, kind: "other" }), { ok: false, reason: "kind" });
+  assertEquals(checkSuggestion("nope"), { ok: false, reason: "not an object" });
 });
 
 Deno.test("long texts are shortened", () => {
@@ -114,4 +128,27 @@ Deno.test("API errors and a missing key throw so that the mail is retried", asyn
   const { impl } = fakeApi("{}", 529);
   await assertRejects(() => createAnthropicAnalyzer("test-key", "m", impl)(input), AnalysisUnavailable);
   await assertRejects(() => createAnthropicAnalyzer(undefined, "m", impl)(input), AnalysisUnavailable);
+});
+
+Deno.test("an answer without JSON is asked for a second time", async () => {
+  let calls = 0;
+  const impl = (() => {
+    calls++;
+    const text = calls === 1 ? "I cannot help with that." : JSON.stringify(good);
+    return Promise.resolve(new Response(JSON.stringify({ content: [{ type: "text", text }] })));
+  }) as typeof fetch;
+  const result = await createAnthropicAnalyzer("test-key", "test-model", impl)(input);
+  assertEquals(calls, 2);
+  assertEquals(result, good);
+});
+
+Deno.test("two answers without JSON give a suggestion of kind none", async () => {
+  let calls = 0;
+  const impl = (() => {
+    calls++;
+    return Promise.resolve(new Response(JSON.stringify({ content: [], stop_reason: "refusal" })));
+  }) as typeof fetch;
+  const result = await createAnthropicAnalyzer("test-key", "test-model", impl)(input);
+  assertEquals(calls, 2);
+  assertEquals(result.kind, "none");
 });

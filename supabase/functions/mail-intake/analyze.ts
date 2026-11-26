@@ -54,40 +54,62 @@ function text(value: unknown, max: number): string | null {
   return trimmed.length === 0 ? null : trimmed.slice(0, max);
 }
 
-/** Returns a clean suggestion, or null if the model answered with something unusable. */
-export function validateSuggestion(raw: unknown): Suggestion | null {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
+export type Checked = { ok: true; value: Suggestion } | { ok: false; reason: string };
+
+/** Validates a model answer. The reason names the field only, never its content (the mail is private). */
+export function checkSuggestion(raw: unknown): Checked {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return { ok: false, reason: "not an object" };
   const r = raw as Record<string, unknown>;
-  if (r.kind !== "event" && r.kind !== "task" && r.kind !== "none") return null;
+  if (r.kind !== "event" && r.kind !== "task" && r.kind !== "none") return { ok: false, reason: "kind" };
   const title = text(r.title, 200);
+  if (!title) return { ok: false, reason: "title" };
   const summary = text(r.summary, 600);
-  if (!title || !summary) return null;
+  if (!summary) return { ok: false, reason: "summary" };
 
   let date: string | null = null;
-  if (r.date !== null && r.date !== undefined) {
-    if (typeof r.date !== "string" || !DATE.test(r.date) || Number.isNaN(Date.parse(r.date))) return null;
+  if (r.date !== null && r.date !== undefined && r.date !== "") {
+    if (typeof r.date !== "string" || !DATE.test(r.date) || Number.isNaN(Date.parse(r.date))) {
+      return { ok: false, reason: "date" };
+    }
     date = r.date;
   }
   let time: string | null = null;
-  if (r.time !== null && r.time !== undefined) {
-    if (typeof r.time !== "string" || !TIME.test(r.time)) return null;
+  if (r.time !== null && r.time !== undefined && r.time !== "") {
+    if (typeof r.time !== "string" || !TIME.test(r.time)) return { ok: false, reason: "time" };
     time = r.time;
   }
+  // Tolerated: the amount as text ("5" or "5.00") and a lower-case currency code.
   let amount: number | null = null;
-  if (r.amount !== null && r.amount !== undefined) {
-    if (typeof r.amount !== "number" || !Number.isFinite(r.amount) || r.amount < 0 || r.amount > 100000) return null;
-    amount = Math.round(r.amount * 100) / 100;
+  if (r.amount !== null && r.amount !== undefined && r.amount !== "") {
+    const number = typeof r.amount === "string" ? Number(r.amount.replace(",", ".")) : r.amount;
+    if (typeof number !== "number" || !Number.isFinite(number) || number < 0 || number > 100000) {
+      return { ok: false, reason: "amount" };
+    }
+    amount = Math.round(number * 100) / 100;
   }
   let currency: string | null = null;
-  if (r.currency !== null && r.currency !== undefined) {
-    if (typeof r.currency !== "string" || !CURRENCY.test(r.currency)) return null;
-    currency = r.currency;
+  if (r.currency !== null && r.currency !== undefined && r.currency !== "") {
+    const code = typeof r.currency === "string" ? r.currency.trim().toUpperCase() : "";
+    if (!CURRENCY.test(code)) return { ok: false, reason: "currency" };
+    currency = code;
   }
   if (r.kind === "none") {
-    return { kind: "none", title, date: null, time: null, amount: null, currency: null, summary };
+    return {
+      ok: true,
+      value: { kind: "none", title, date: null, time: null, amount: null, currency: null, summary },
+    };
   }
   if (r.kind === "task") time = null;
-  return { kind: r.kind, title, date, time, amount, currency: amount === null ? null : currency, summary };
+  return {
+    ok: true,
+    value: { kind: r.kind, title, date, time, amount, currency: amount === null ? null : currency, summary },
+  };
+}
+
+/** Returns a clean suggestion, or null if the model answered with something unusable. */
+export function validateSuggestion(raw: unknown): Suggestion | null {
+  const checked = checkSuggestion(raw);
+  return checked.ok ? checked.value : null;
 }
 
 /** Extracts the JSON object from a model answer, tolerating code fences or a short remark around it. */
@@ -137,29 +159,47 @@ export function createAnthropicAnalyzer(
 ): Analyzer {
   return async (input) => {
     if (!apiKey) throw new AnalysisUnavailable("ANTHROPIC_API_KEY is not set");
-    const response = await fetchImpl("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 700,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: buildUserMessage(input) }],
-      }),
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!response.ok) {
-      // Never log the response body: it can echo parts of the mail.
-      throw new AnalysisUnavailable(`Anthropic API answered with ${response.status}`);
+    // One retry when the answer holds no JSON at all (empty or plain text). Errors of the API itself are not
+    // retried here: they throw, and the whole mail is sent again on the next run.
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const response = await fetchImpl("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 700,
+          system: SYSTEM_PROMPT,
+          messages: [{ role: "user", content: buildUserMessage(input) }],
+        }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!response.ok) {
+        // Never log the response body: it can echo parts of the mail.
+        throw new AnalysisUnavailable(`Anthropic API answered with ${response.status}`);
+      }
+      const data = await response.json();
+      const blocks: { type?: string; text?: string }[] = Array.isArray(data?.content) ? data.content : [];
+      const answer = blocks.map((block) => block.text ?? "").join("");
+      const parsed = parseModelAnswer(answer);
+      if (parsed === null) {
+        // Only technical facts are logged, never the text.
+        console.error(
+          `model answer rejected: no JSON found (attempt ${attempt}, stop_reason=${data?.stop_reason}, ` +
+            `blocks=${blocks.map((b) => b.type).join("+") || "none"}, chars=${answer.length})`,
+        );
+        continue;
+      }
+      const checked = checkSuggestion(parsed);
+      if (!checked.ok) {
+        console.error(`model answer rejected: ${checked.reason}`);
+        return fallbackSuggestion(input.subject);
+      }
+      return checked.value;
     }
-    const data = await response.json();
-    const answer = Array.isArray(data?.content)
-      ? data.content.map((block: { text?: string }) => block.text ?? "").join("")
-      : "";
-    return validateSuggestion(parseModelAnswer(answer)) ?? fallbackSuggestion(input.subject);
+    return fallbackSuggestion(input.subject);
   };
 }
