@@ -66,7 +66,7 @@ struct TaskDraft {
     var dueOn: String?
     var cashCents: Int?
     /// `HH:mm`, only meaningful together with `dueOn`.
-    var dueTime: String? = nil
+    var dueTime: String?
 }
 
 /// Input of the calendar item form. A nil id creates a new item.
