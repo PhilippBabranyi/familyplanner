@@ -40,10 +40,10 @@ jobs:
           printf '%s\n' "$ASC_KEY_P8" > "$RUNNER_TEMP/keys/AuthKey.p8"
           chmod 600 "$RUNNER_TEMP/keys/AuthKey.p8"
 
-      # The archive is signed ad hoc (no certificate, no profile): this embeds the app's entitlements, such as
-      # push notifications, which an unsigned build would drop. Signing with the distribution certificate and
-      # profile (created automatically through the API key) happens in the export step. This avoids
-      # needing a registered device, which only development profiles require.
+      # The archive is built unsigned (Xcode refuses ad hoc signing for device SDKs). An unsigned build drops the
+      # app's entitlements (push notifications), so the app is signed ad hoc afterwards with its entitlements file.
+      # The export step then re-signs it with the distribution certificate and profile (created automatically
+      # through the API key) and keeps those entitlements.
       - name: Archive
         run: |
           xcodebuild archive \
@@ -52,17 +52,17 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/FamilyPlanner.xcarchive" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            PROVISIONING_PROFILE_SPECIFIER="" \
+            CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="$TEAM_ID" \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}"
 
-      - name: Show the entitlements of the archived app
+      - name: Embed the entitlements in the archived app
         run: |
           APP=$(ls -d "$RUNNER_TEMP"/FamilyPlanner.xcarchive/Products/Applications/*.app)
-          codesign -d --entitlements :- "$APP" || echo "no entitlements found in the archive"
+          codesign --force --sign - --entitlements FamilyPlanner/FamilyPlanner.entitlements "$APP"
+          codesign -d --entitlements :- "$APP"
 
       - name: Export and upload to TestFlight
         env:
