@@ -19,6 +19,10 @@ protocol FamilyDataSource {
     func deleteCalendarItem(id: String) async throws
     /// Replaces all pickup times: weekdays that are missing have no pickup.
     func setPickupTimes(_ times: [Weekday: TimeOfDay]) async throws
+    /// Who picks up on a day (`yyyy-MM-dd`); nil removes the entry, so that nobody is entered.
+    func setPickupDriver(day: String, memberId: String?) async throws
+    /// Minutes before the pickup at which the reminder comes.
+    func setPickupReminder(minutes: Int) async throws
     func addHoliday(name: String, startsOn: String, endsOn: String) async throws
     func deleteHoliday(id: String) async throws
 
@@ -109,6 +113,14 @@ actor DemoDataSource: FamilyDataSource {
 
     func setPickupTimes(_ times: [Weekday: TimeOfDay]) async throws {
         calendar.pickups = times
+    }
+
+    func setPickupDriver(day: String, memberId: String?) async throws {
+        calendar.pickupDrivers[day] = memberId
+    }
+
+    func setPickupReminder(minutes: Int) async throws {
+        calendar.remindMinutes = minutes
     }
 
     func addHoliday(name: String, startsOn: String, endsOn: String) async throws {

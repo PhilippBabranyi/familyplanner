@@ -9,6 +9,7 @@ import {
   type FamilyData,
   formatEuro,
   isoWeekday,
+  pickupReminder,
   planDay,
   targetDate,
 } from "./digest.ts";
@@ -70,6 +71,8 @@ const data: FamilyData = {
     },
   ],
   pickups: { 1: "15:20:00", 4: "16:20:00" },
+  pickupRemind: { 1: 30, 4: 45 },
+  pickupDrivers: { "2026-12-03": { id: "u-sam", name: "Sam" } },
   holidays: [{ name: "Herbstferien", startsOn: "2026-12-10", endsOn: "2026-12-12" }],
   tasks: [
     { title: "Kostümtag", assignee: "Kim", dueOn: "2026-12-03", dueTime: "08:15:00", cashCents: 500 },
@@ -101,7 +104,7 @@ Deno.test("a series ends after its last day", () => {
 Deno.test("the morning message lists the facts of the day", () => {
   const { title, body } = buildDigest("morning", planDay(data, "2026-12-03"), () => 0);
   assertStringIncludes(title, "Guten Morgen");
-  assertStringIncludes(body, "Abholung 16:20");
+  assertStringIncludes(body, "Abholung 16:20 (Sam)");
   assertStringIncludes(body, "09:30 Zahnarzt");
   assertStringIncludes(body, "16:00 Ballet (Kim)");
   assertStringIncludes(body, "Aufgaben: Kostümtag 08:15 (Kim)");
@@ -118,7 +121,9 @@ Deno.test("the evening message talks about tomorrow and leaves out overdue tasks
 });
 
 Deno.test("an empty day gets a friendly line", () => {
-  const empty: FamilyData = { items: [], pickups: {}, holidays: [], tasks: [] };
+  const empty: FamilyData = {
+    items: [], pickups: {}, pickupRemind: {}, pickupDrivers: {}, holidays: [], tasks: [],
+  };
   assertEquals(buildDigest("morning", planDay(empty, "2026-12-05"), () => 0).body, "Heute steht nichts an. Einen schönen Tag!");
   assertEquals(buildDigest("evening", planDay(empty, "2026-12-05"), () => 0).body, "Morgen steht nichts an. Gute Nacht!");
 });
@@ -129,7 +134,7 @@ Deno.test("long days are shortened", () => {
       title: `Termin ${i}`, startsOn: "2026-12-05", atTime: `1${i}:00:00`, weekdays: [], repeatUntil: null,
       skipHolidays: false, assignee: null, cashCents: null,
     })),
-    pickups: {}, holidays: [], tasks: [],
+    pickups: {}, pickupRemind: {}, pickupDrivers: {}, holidays: [], tasks: [],
   };
   const { body } = buildDigest("morning", planDay(many, "2026-12-05"), () => 0);
   assertStringIncludes(body, "… und 3 weitere Termine");
@@ -139,4 +144,41 @@ Deno.test("euro amounts", () => {
   assertEquals(formatEuro(500), "5 €");
   assertEquals(formatEuro(550), "5,50 €");
   assertEquals(formatEuro(2505), "25,05 €");
+});
+
+Deno.test("an open pickup is asked for in the title and the text", () => {
+  const monday = planDay(data, "2026-12-07");
+  assertEquals(monday.pickup, "15:20");
+  assertEquals(monday.pickupDriver, null);
+  const morning = buildDigest("morning", monday, () => 0);
+  assertEquals(morning.title, "🚗 Wer holt heute ab?");
+  assertStringIncludes(morning.body, "Abholung 15:20: noch niemand eingetragen");
+  assertEquals(buildDigest("evening", monday, () => 0).title, "🚗 Wer holt morgen ab?");
+});
+
+Deno.test("days without a pickup do not ask who picks up", () => {
+  const tuesday = planDay(data, "2026-12-08");
+  assertEquals(tuesday.pickup, null);
+  assertEquals(buildDigest("morning", tuesday, () => 0).title.includes("Wer holt"), false);
+});
+
+const thursday = (hour: number, minute: number): Clock => ({ date: "2026-12-03", weekday: 4, minutes: hour * 60 + minute });
+
+Deno.test("the reminder goes to the driver from the lead time until the pickup", () => {
+  // Pickup 16:20, lead time 45 minutes: from 15:35.
+  assertEquals(pickupReminder(data, thursday(15, 34)), null);
+  const due = pickupReminder(data, thursday(15, 35));
+  assertEquals(due?.driverId, "u-sam");
+  assertStringIncludes(due?.message.body ?? "", "16:20");
+  assertEquals(pickupReminder(data, thursday(16, 19))?.driverId, "u-sam");
+  assertEquals(pickupReminder(data, thursday(16, 20)), null);
+});
+
+Deno.test("no reminder without a driver, without a pickup or on a holiday", () => {
+  const monday: Clock = { date: "2026-12-07", weekday: 1, minutes: 15 * 60 };
+  assertEquals(pickupReminder(data, monday), null);
+  const tuesday: Clock = { date: "2026-12-08", weekday: 2, minutes: 15 * 60 };
+  assertEquals(pickupReminder(data, tuesday), null);
+  const holiday: FamilyData = { ...data, pickupDrivers: { "2026-12-10": { id: "u-sam", name: "Sam" } } };
+  assertEquals(pickupReminder(holiday, { date: "2026-12-10", weekday: 4, minutes: 16 * 60 }), null);
 });

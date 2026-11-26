@@ -23,6 +23,8 @@ struct WeekPlan {
     var itemsByDay: [Weekday: [WeekItem]]
     /// Holidays by weekday of this week (value is the holiday name). No pickup on these days.
     var holidays: [Weekday: String] = [:]
+    /// Account (member id) that picks up, by weekday of this week. A missing day means nobody is entered yet.
+    var driverByDay: [Weekday: String] = [:]
 
     /// Items of a day, earliest first.
     func items(on day: Weekday) -> [WeekItem] {

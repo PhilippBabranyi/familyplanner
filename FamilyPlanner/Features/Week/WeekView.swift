@@ -44,7 +44,7 @@ struct WeekView: View {
                 dayPicker
 
                 if let pickup = plan.pickup.time(on: day) {
-                    pickupCard(time: pickup, isException: plan.pickup.isException(on: day))
+                    pickupCard(time: pickup, isException: plan.pickup.isException(on: day), day: day)
                 }
 
                 if let holiday = plan.holidays[day] {
@@ -191,7 +191,49 @@ struct WeekView: View {
         }
     }
 
-    private func pickupCard(time: TimeOfDay, isException: Bool) -> some View {
+    private func pickupCard(time: TimeOfDay, isException: Bool, day: Weekday) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            pickupHeader(time: time, isException: isException)
+            driverMenu(day: day)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
+        .background(
+            isException ? Theme.butter : Theme.surfaceAlt,
+            in: RoundedRectangle(cornerRadius: 30, style: .continuous)
+        )
+    }
+
+    /// Who picks up on this day. Nobody is entered by default; the morning push asks for it.
+    private func driverMenu(day: Weekday) -> some View {
+        let name = model.driverName(on: day)
+        return Menu {
+            ForEach(model.accounts) { member in
+                Button(member.name) {
+                    Task { _ = await model.setPickupDriver(day: day, memberId: member.id) }
+                }
+            }
+            if name != nil {
+                Button("Niemand", role: .destructive) {
+                    Task { _ = await model.setPickupDriver(day: day, memberId: nil) }
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: name == nil ? "person.crop.circle.badge.questionmark" : "person.crop.circle")
+                Text(name.map { "\($0) holt ab" } ?? "Wer holt ab? Noch niemand eingetragen")
+                Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold))
+            }
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(Theme.text)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Theme.surface, in: Capsule())
+        }
+        .accessibilityIdentifier("pickup-driver")
+    }
+
+    private func pickupHeader(time: TimeOfDay, isException: Bool) -> some View {
         HStack(spacing: 14) {
             Image(systemName: "clock")
                 .font(.system(size: 22, weight: .semibold))
@@ -212,12 +254,6 @@ struct WeekView: View {
                 .foregroundStyle(Theme.text)
                 .frame(maxWidth: 120, alignment: .trailing)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
-        .background(
-            isException ? Theme.butter : Theme.surfaceAlt,
-            in: RoundedRectangle(cornerRadius: 30, style: .continuous)
-        )
     }
 }
 

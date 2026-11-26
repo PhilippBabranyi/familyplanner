@@ -10,6 +10,15 @@ Every morning and evening the family gets one push with the day.
 Content: holiday, pickup time, calendar items, tasks due, overdue tasks (morning only) and the cash to take along.
 Times are Berlin time. They are fixed in `supabase/functions/daily-digest/digest.ts`.
 
+## Pickup: who and when to leave
+
+- On the week screen the card "Abholung" has a menu "Wer holt ab?". Nobody is entered by default (table
+  `pickup_drivers`, one row per day). If a day with a pickup has nobody, the morning and evening push say so
+  ("Wer holt heute ab?").
+- The person who is entered gets the push "Zeit zum Losfahren" `remind_minutes` before the pickup (30 by default,
+  set in "Abholung & Ferien"). Only that person's phones get it. It is sent once per day (slot `pickup`).
+- Setup: apply `supabase/migrations/20261127160000_pickup_driver.sql` and deploy the new version of the function.
+
 ## How it works
 
 A timer in the database (pg_cron) calls the Edge Function `daily-digest` every 5 minutes. The function checks the

@@ -150,4 +150,16 @@ final class WeekBuilderTests: XCTestCase {
         XCTAssertEqual(stored.weekdays, [.monday, .friday])
         XCTAssertTrue(stored.skipHolidays)
     }
+
+    func testPickupDriverIsPlacedOnItsDayAndNotOnHolidays() {
+        let data = CalendarData(
+            pickups: [.monday: .at(15, 20), .tuesday: .at(15, 20)],
+            holidays: [Holiday(id: "h", name: "Break", startsOn: "2026-11-24", endsOn: "2026-11-24")],
+            pickupDrivers: ["2026-11-23": "sam", "2026-11-24": "sam"]
+        )
+        let result = WeekBuilder.plan(data: data, weekStart: date("2026-11-23"), calendar: calendar)
+        XCTAssertEqual(result.driverByDay[.monday], "sam")
+        XCTAssertNil(result.driverByDay[.tuesday])
+        XCTAssertNil(result.driverByDay[.wednesday])
+    }
 }

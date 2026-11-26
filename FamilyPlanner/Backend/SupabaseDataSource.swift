@@ -128,10 +128,19 @@ actor SupabaseDataSource: FamilyDataSource {
                 pickups[day] = time
             }
         }
+        // The driver and the reminder are optional extras: if they cannot be read, the week still loads.
+        let driverRows: [PickupDriverRow] = (try? await client.from("pickup_drivers")
+            .select("day,driver")
+            .execute().value) ?? []
+        let reminderRows: [PickupReminderRow] = (try? await client.from("pickup_times")
+            .select("remind_minutes")
+            .execute().value) ?? []
         return CalendarData(
             items: rows.compactMap { $0.makeItem(names: names) },
             pickups: pickups,
-            holidays: holidayRows.map { $0.makeHoliday() }
+            holidays: holidayRows.map { $0.makeHoliday() },
+            pickupDrivers: Dictionary(driverRows.map { ($0.day, $0.driver) }, uniquingKeysWith: { _, last in last }),
+            remindMinutes: reminderRows.first?.remindMinutes ?? 30
         )
     }
 
@@ -163,6 +172,23 @@ actor SupabaseDataSource: FamilyDataSource {
         for day in Weekday.allCases where times[day] == nil {
             try await client.from("pickup_times").delete().eq("weekday", value: day.rawValue).execute()
         }
+    }
+
+    func setPickupDriver(day: String, memberId: String?) async throws {
+        guard let memberId else {
+            try await client.from("pickup_drivers").delete().eq("day", value: day).execute()
+            return
+        }
+        guard let driver = UUID(uuidString: memberId) else { return }
+        let write = PickupDriverWrite(familyId: try await familyId(), day: day, driver: driver.uuidString.lowercased())
+        try await client.from("pickup_drivers").upsert(write, onConflict: "family_id,day").execute()
+    }
+
+    func setPickupReminder(minutes: Int) async throws {
+        try await client.from("pickup_times")
+            .update(["remind_minutes": minutes])
+            .gte("weekday", value: 1)
+            .execute()
     }
 
     func addHoliday(name: String, startsOn: String, endsOn: String) async throws {
