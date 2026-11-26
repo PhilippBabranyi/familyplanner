@@ -22,19 +22,16 @@ struct InboxSuggestion: Identifiable, Equatable {
     var subject: String
     var link: URL?
 
-    /// "5,00 GBP" or nil. The amount is shown in the currency of the mail.
+    /// "5,00 €" or nil. Euro is the family's currency: a mail that names another currency is read as euros.
     var amountText: String? {
         guard let amountCents else { return nil }
         let euros = Double(amountCents) / 100
         let number = String(format: "%.2f", euros).replacingOccurrences(of: ".", with: ",")
-        return "\(number) \(currency ?? "€")"
+        return "\(number) €"
     }
 
-    /// The amount can be taken over into the app's cash field only if it is in euros (or has no currency).
-    var amountCentsInEuro: Int? {
-        guard let amountCents else { return nil }
-        return (currency == nil || currency == "EUR") ? amountCents : nil
-    }
+    /// The amount for the app's cash field, which is always in euros.
+    var amountCentsInEuro: Int? { amountCents }
 
     /// "Fr. 4.12." style hint for the card: date and time, whatever is known.
     var whenText: String? {

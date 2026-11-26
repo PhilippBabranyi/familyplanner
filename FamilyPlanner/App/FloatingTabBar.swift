@@ -36,6 +36,8 @@ struct FloatingTabBar: View {
             .padding(.horizontal, isSelected ? 15 : 0)
             .frame(minWidth: 50, minHeight: 48)
             .background(isSelected ? Theme.accent : Color.clear, in: Capsule())
+            // Without this only the drawn icon reacts; the three dots of "Mehr" are tiny and often missed.
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(route.title)

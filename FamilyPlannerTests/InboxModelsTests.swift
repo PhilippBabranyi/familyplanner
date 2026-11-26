@@ -29,17 +29,31 @@ final class InboxModelsTests: XCTestCase {
         XCTAssertEqual(make(payload(kind: "event", time: "18:00"))?.kind, .event)
     }
 
-    func testAmountIsShownInTheCurrencyOfTheMail() {
+    func testAmountIsAlwaysShownInEuro() {
         let suggestion = make(payload(amount: 5, currency: "GBP"))
         XCTAssertEqual(suggestion?.amountCents, 500)
-        XCTAssertEqual(suggestion?.amountText, "5,00 GBP")
+        XCTAssertEqual(suggestion?.amountText, "5,00 €")
     }
 
-    func testOnlyEuroAmountsAreTakenOverIntoTheCashField() {
-        XCTAssertNil(make(payload(amount: 5, currency: "GBP"))?.amountCentsInEuro)
+    func testEveryAmountIsTakenOverIntoTheCashField() {
+        XCTAssertEqual(make(payload(amount: 5, currency: "GBP"))?.amountCentsInEuro, 500)
         XCTAssertEqual(make(payload(amount: 12.5, currency: "EUR"))?.amountCentsInEuro, 1250)
         XCTAssertEqual(make(payload(amount: 12.5, currency: nil))?.amountCentsInEuro, 1250)
         XCTAssertNil(make(payload(amount: nil, currency: nil))?.amountCentsInEuro)
+    }
+
+    func testTaskDraftKeepsTheTitleCleanAndFillsTheCash() throws {
+        let suggestion = try XCTUnwrap(make(payload(amount: 5, currency: "GBP")))
+        let draft = SuggestionDrafts.task(from: suggestion)
+        XCTAssertEqual(draft.title, suggestion.title)
+        XCTAssertEqual(draft.cashCents, 500)
+    }
+
+    func testEventDraftFillsTheCashAndNotTheNote() throws {
+        let suggestion = try XCTUnwrap(make(payload(kind: "event", time: "18:00", amount: 5, currency: "GBP")))
+        let draft = SuggestionDrafts.event(from: suggestion)
+        XCTAssertEqual(draft.cashCents, 500)
+        XCTAssertEqual(draft.note, "")
     }
 
     func testWhenTextNamesDayAndTime() {

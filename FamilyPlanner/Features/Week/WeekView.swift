@@ -7,8 +7,9 @@ struct WeekView: View {
     @State private var editor: ItemEditorTarget?
     @State private var showsPickups = false
 
-    private var day: Weekday { selectedDay ?? model.todayWeekday }
-    private var plan: WeekPlan { model.plan }
+    /// In the current week the selected day defaults to today, in any other week to Monday.
+    private var day: Weekday { selectedDay ?? (model.isShowingCurrentWeek ? model.todayWeekday : .monday) }
+    private var plan: WeekPlan { model.shownPlan }
 
     var body: some View {
         ScrollView {
@@ -19,7 +20,7 @@ struct WeekView: View {
                         .tracking(1.2)
                         .foregroundStyle(Theme.muted)
                     HStack(alignment: .firstTextBaseline) {
-                        Text("Diese Woche")
+                        Text(weekTitle)
                             .font(Theme.display(36))
                             .foregroundStyle(Theme.text)
                         Spacer()
@@ -37,6 +38,8 @@ struct WeekView: View {
                 if let message = model.errorMessage {
                     ErrorBanner(message: message)
                 }
+
+                weekNavigator
 
                 dayPicker
 
@@ -69,7 +72,7 @@ struct WeekView: View {
         .task { await model.load() }
         .accessibilityIdentifier("screen-week")
         .addButton(identifier: "add-item") {
-            editor = ItemEditorTarget(item: nil, defaultDate: model.date(of: day))
+            editor = ItemEditorTarget(item: nil, defaultDate: model.shownDate(of: day))
         }
         .sheet(item: $editor) { target in
             ItemFormSheet(model: model, target: target)
@@ -81,7 +84,7 @@ struct WeekView: View {
 
     private func edit(_ item: WeekItem) {
         guard let sourceId = item.sourceId, let stored = model.storedItem(id: sourceId) else { return }
-        editor = ItemEditorTarget(item: stored, defaultDate: model.date(of: day))
+        editor = ItemEditorTarget(item: stored, defaultDate: model.shownDate(of: day))
     }
 
     private var rangeTitle: String {
@@ -89,9 +92,76 @@ struct WeekView: View {
         formatter.locale = Locale(identifier: "de_DE")
         formatter.dateFormat = "d. MMMM"
         let calendar = WeekBuilder.calendar()
-        let first = calendar.component(.day, from: model.weekStart)
-        let last = formatter.string(from: model.date(of: .sunday))
+        let first = calendar.component(.day, from: model.shownWeekStart)
+        let last = formatter.string(from: model.shownDate(of: .sunday))
         return "\(first).–\(last)".uppercased()
+    }
+
+    private var weekTitle: String {
+        switch model.shownWeekOffset {
+        case 0: return "Diese Woche"
+        case 1: return "Nächste Woche"
+        case -1: return "Letzte Woche"
+        default: return "Woche \(WeekBuilder.calendar().component(.weekOfYear, from: model.shownWeekStart))"
+        }
+    }
+
+    /// Buttons for the previous and the next week, a jump to today and a date picker to go to any week.
+    private var weekNavigator: some View {
+        HStack(spacing: 8) {
+            navButton("chevron.left", label: "Vorherige Woche", id: "week-previous") {
+                selectedDay = nil
+                model.showWeek(offsetBy: -1)
+            }
+            Button {
+                selectedDay = nil
+                model.showCurrentWeek()
+            } label: {
+                Text("Heute")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+                    .padding(.horizontal, 14)
+                    .frame(height: 38)
+                    .background(Theme.surface, in: Capsule())
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(model.isShowingCurrentWeek)
+            .opacity(model.isShowingCurrentWeek ? 0.5 : 1)
+            .accessibilityIdentifier("week-today")
+            navButton("chevron.right", label: "Nächste Woche", id: "week-next") {
+                selectedDay = nil
+                model.showWeek(offsetBy: 1)
+            }
+            Spacer()
+            DatePicker(
+                "Zu Datum springen",
+                selection: Binding(
+                    get: { model.shownDate(of: day) },
+                    set: { date in
+                        model.showWeek(containing: date)
+                        selectedDay = WeekBuilder.weekday(of: date, calendar: WeekBuilder.calendar())
+                    }
+                ),
+                displayedComponents: .date
+            )
+            .labelsHidden()
+            .accessibilityIdentifier("week-jump")
+        }
+    }
+
+    private func navButton(_ symbol: String, label: String, id: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Theme.text)
+                .frame(width: 38, height: 38)
+                .background(Theme.surface, in: Circle())
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(id)
     }
 
     private var dayPicker: some View {
@@ -104,7 +174,7 @@ struct WeekView: View {
                     VStack(spacing: 2) {
                         Text(weekday.shortName)
                             .font(.system(size: 12, weight: .semibold))
-                        Text("\(model.dayNumber(weekday))")
+                        Text("\(model.shownDayNumber(weekday))")
                             .font(Theme.display(19))
                         Circle()
                             .fill(plan.pickup.isException(on: weekday) ? Color(hex: 0xC98F6B) : Color.clear)

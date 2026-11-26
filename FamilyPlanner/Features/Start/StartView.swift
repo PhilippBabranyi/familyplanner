@@ -2,6 +2,8 @@ import SwiftUI
 
 /// Start screen: a dandelion whose seeds lead into the app's functions.
 struct StartView: View {
+    /// Display name of the signed-in person; the greeting has no name until it is known.
+    let name: String?
     let open: (Route) -> Void
 
     private struct Placement {
@@ -77,7 +79,7 @@ struct StartView: View {
                 .font(.system(size: 12, weight: .semibold))
                 .tracking(1.2)
                 .foregroundStyle(Theme.muted)
-            Text("Hallo Alex")
+            Text(name.map { "Hallo \($0)" } ?? "Hallo")
                 .font(Theme.display(28))
                 .foregroundStyle(Theme.text)
             Text("Jeder Samen trägt dich an einen Ort. Tippe einen an.")
