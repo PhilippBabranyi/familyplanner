@@ -54,9 +54,13 @@ function base64Url(bytes: Uint8Array): string {
   return btoa(text).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-function pemToDer(pem: string): Uint8Array {
+function pemToDer(pem: string): ArrayBuffer {
   const base64 = pem.replace(/-----[^-]+-----/g, "").replace(/\s+/g, "");
-  return Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  const binary = atob(base64);
+  const buffer = new ArrayBuffer(binary.length);
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return buffer;
 }
 
 /** The JWT that identifies this server to APNs (ES256, valid up to one hour). */
