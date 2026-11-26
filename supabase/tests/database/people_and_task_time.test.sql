@@ -1,6 +1,6 @@
 -- Tests for people without an account and the task time (pgTAP). All people and data are invented.
 begin;
-select plan(11);
+select plan(13);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-0000000000a1', 'alex@example.test'),
@@ -17,6 +17,12 @@ insert into public.family_members (family_id, user_id, display_name, role) value
   ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000a2', 'Sam', 'family'),
   ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000a3', 'Helper', 'guest'),
   ('00000000-0000-0000-0000-0000000000f2', '00000000-0000-0000-0000-0000000000a4', 'Stranger', 'admin');
+
+-- Privileges are granted explicitly in this project; the app's role needs them on the new table
+select ok(has_table_privilege('authenticated', 'public.household_people', 'SELECT'),
+  'signed-in users have privileges on the people table');
+select ok(not has_table_privilege('anon', 'public.household_people', 'SELECT'),
+  'anon has no privileges on the people table');
 
 -- Admin (alex) adds a child without an account
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
