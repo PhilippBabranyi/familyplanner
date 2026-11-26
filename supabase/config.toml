@@ -9,3 +9,7 @@ major_version = 17
 # The mail script in a Google account is not a Supabase user; it authenticates with a mailbox token.
 [functions.mail-intake]
 verify_jwt = false
+
+# Called by a timer in the database, not by a Supabase user; it authenticates with the secret DIGEST_SECRET.
+[functions.daily-digest]
+verify_jwt = false

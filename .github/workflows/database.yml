@@ -49,4 +49,7 @@ jobs:
       - name: Test Edge Functions
         env:
           MAIL_INTAKE_TEST: "1"
-        run: deno test --allow-env supabase/functions/mail-intake
+          DIGEST_TEST: "1"
+        run: |
+          deno test --allow-env supabase/functions/mail-intake
+          deno test --allow-env supabase/functions/daily-digest
