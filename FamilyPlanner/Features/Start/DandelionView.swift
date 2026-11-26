@@ -64,3 +64,40 @@ struct DandelionView: View {
         context.stroke(tuft, with: .color(Theme.seed), style: StrokeStyle(lineWidth: 1.1, lineCap: .round))
     }
 }
+
+/// A small dandelion for the menu: a seed head on a stem. Drawn in the current foreground colour.
+struct DandelionIcon: View {
+    var body: some View {
+        Canvas { context, size in
+            let scale = min(size.width, size.height) / 24
+            let head = CGPoint(x: 12 * scale, y: 9 * scale)
+            var rays = Path()
+            var dots = Path()
+            for index in 0..<10 {
+                let radians = Double(index) * 36 * .pi / 180
+                let inner = CGPoint(x: head.x + 2.2 * scale * sin(radians), y: head.y - 2.2 * scale * cos(radians))
+                let outer = CGPoint(x: head.x + 7 * scale * sin(radians), y: head.y - 7 * scale * cos(radians))
+                rays.move(to: inner)
+                rays.addLine(to: outer)
+                dots.addEllipse(in: CGRect(x: outer.x - 1.1 * scale, y: outer.y - 1.1 * scale,
+                                           width: 2.2 * scale, height: 2.2 * scale))
+            }
+            var stem = Path()
+            stem.move(to: CGPoint(x: head.x, y: head.y + 2.5 * scale))
+            stem.addCurve(
+                to: CGPoint(x: 12.5 * scale, y: 23 * scale),
+                control1: CGPoint(x: 11 * scale, y: 14 * scale),
+                control2: CGPoint(x: 13.5 * scale, y: 18 * scale)
+            )
+            context.stroke(rays, with: .foreground, style: StrokeStyle(lineWidth: 1.2 * scale, lineCap: .round))
+            context.stroke(stem, with: .foreground, style: StrokeStyle(lineWidth: 1.6 * scale, lineCap: .round))
+            context.fill(dots, with: .foreground)
+            context.fill(
+                Path(ellipseIn: CGRect(x: head.x - 1.6 * scale, y: head.y - 1.6 * scale,
+                                       width: 3.2 * scale, height: 3.2 * scale)),
+                with: .foreground
+            )
+        }
+        .accessibilityHidden(true)
+    }
+}

@@ -208,10 +208,11 @@ final class WeekViewModel: ObservableObject {
     }
 
     func load() async {
+        // The name is fetched first and on its own, so that the greeting does not depend on the calendar.
+        if let name = try? await source.currentMemberName() { memberName = name }
         do {
             data = try await source.loadCalendar()
             plan = WeekBuilder.plan(data: data, weekStart: weekStart, calendar: calendar)
-            memberName = try await source.currentMemberName()
             errorMessage = nil
         } catch {
             // A request that was cancelled (the view went away, a newer load started) is not an error.

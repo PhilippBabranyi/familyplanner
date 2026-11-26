@@ -51,8 +51,8 @@ final class ScreenshotTests: XCTestCase {
         capture("06-shopping")
 
         // The dandelion button leads back to the start screen from anywhere.
-        XCTAssertTrue(app.buttons["home-button"].waitForExistence(timeout: 5))
-        app.buttons["home-button"].tap()
+        XCTAssertTrue(app.buttons["tab-start"].waitForExistence(timeout: 5))
+        app.buttons["tab-start"].tap()
         XCTAssertTrue(app.buttons["seed-today"].waitForExistence(timeout: 5))
     }
 

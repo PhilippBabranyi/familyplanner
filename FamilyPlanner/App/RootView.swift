@@ -85,22 +85,9 @@ struct RootView: View {
         showSuggestions = true
     }
 
-    /// Always-visible way back to the dandelion start screen, and the bell.
+    /// The bell, always visible at the top right. The way back to the start screen is the dandelion in the menu.
     private var topBar: some View {
         HStack {
-            Button {
-                route = .start
-            } label: {
-                Image(systemName: "leaf.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Theme.accent)
-                    .frame(width: 48, height: 48)
-                    .background(Theme.surface, in: Circle())
-                    .shadow(color: Theme.shadow.opacity(0.5), radius: 5, x: 0, y: 2)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Zur Startseite")
-            .accessibilityIdentifier("home-button")
             Spacer()
             bell
         }

@@ -3,9 +3,11 @@ import XCTest
 
 private actor FailingSource: FamilyDataSource {
     private let error: Error
+    private let memberName: String?
 
-    init(error: Error = URLError(.notConnectedToInternet)) {
+    init(error: Error = URLError(.notConnectedToInternet), memberName: String? = nil) {
         self.error = error
+        self.memberName = memberName
     }
 
     func loadTasks() async throws -> TaskBoard { throw error }
@@ -25,7 +27,10 @@ private actor FailingSource: FamilyDataSource {
     func decideSuggestion(id: String, decision: SuggestionDecision) async throws { throw error }
     func registerDevice(token: String) async throws { throw error }
     func loadMembers() async throws -> [Member] { throw error }
-    func currentMemberName() async throws -> String? { throw error }
+    func currentMemberName() async throws -> String? {
+        if let memberName { return memberName }
+        throw error
+    }
 }
 
 /// Loads fine but cannot save: used to check that optimistic changes are reverted.
@@ -279,6 +284,17 @@ final class WeekViewModelTests: XCTestCase {
         let model = WeekViewModel(source: FailingSource())
         await model.load()
         XCTAssertEqual(model.errorMessage, "Der Wochenplan konnte nicht geladen werden.")
+    }
+
+    func testGreetingNameDoesNotDependOnTheCalendar() async {
+        let model = WeekViewModel(source: FailingSource(memberName: "Sam"))
+        await model.load()
+        XCTAssertEqual(model.memberName, "Sam")
+        XCTAssertNotNil(model.errorMessage)
+    }
+
+    func testTheDandelionIsTheFirstMenuEntry() {
+        XCTAssertEqual(Route.tabs.first, .start)
     }
 
     func testDayNumbersFollowTheWeekOfToday() {

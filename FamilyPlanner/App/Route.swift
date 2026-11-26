@@ -13,8 +13,8 @@ enum Route: String, CaseIterable, Identifiable {
     /// The tab that is highlighted while this destination is shown (Einkauf lives under "Mehr").
     var tab: Route { self == .shopping ? .more : self }
 
-    /// Destinations shown in the floating tab bar (the start screen is not one of them).
-    static let tabs: [Route] = [.today, .week, .ask, .tasks, .more]
+    /// Destinations shown in the floating tab bar. The start screen (the dandelion) is always the first one.
+    static let tabs: [Route] = [.start, .today, .week, .ask, .tasks, .more]
 
     var title: String {
         switch self {
