@@ -42,6 +42,8 @@ export interface FamilyData {
   pickups: Record<number, string>;
   /** Minutes before the pickup at which the reminder comes, by ISO weekday. */
   pickupRemind: Record<number, number>;
+  /** Changes for single days (`yyyy-MM-dd`): the changed time, or null if there is no pickup that day. */
+  pickupOverrides: Record<string, string | null>;
   /** Who picks up on which day (`yyyy-MM-dd`). A day that is missing has nobody entered yet. */
   pickupDrivers: Record<string, { id: string; name: string }>;
   holidays: Holiday[];
@@ -145,7 +147,9 @@ export function planDay(data: FamilyData, date: string): DayPlan {
   const due = data.tasks
     .filter((task) => task.dueOn === date)
     .sort((a, b) => (a.dueTime ?? "99:99").localeCompare(b.dueTime ?? "99:99"));
-  const pickup = holiday ? null : data.pickups[weekday] ?? null;
+  const changed = date in data.pickupOverrides;
+  const regular = data.pickups[weekday] ?? null;
+  const pickup = holiday ? null : changed ? data.pickupOverrides[date] : regular;
   const cash = [...items, ...due].reduce((sum, entry) => sum + (entry.cashCents ?? 0), 0);
   return {
     date,
@@ -233,7 +237,7 @@ export function pickupReminder(data: FamilyData, clock: Clock): PickupReminder |
   if (!plan.pickup || !driver) return null;
   const [hours, minutes] = plan.pickup.split(":").map(Number);
   const pickupAt = hours * 60 + minutes;
-  const lead = data.pickupRemind[clock.weekday] ?? 30;
+  const lead = data.pickupRemind[clock.weekday] ?? Object.values(data.pickupRemind)[0] ?? 30;
   if (clock.minutes < pickupAt - lead || clock.minutes >= pickupAt) return null;
   return {
     driverId: driver.id,

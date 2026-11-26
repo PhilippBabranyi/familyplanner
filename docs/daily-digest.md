@@ -17,7 +17,10 @@ Times are Berlin time. They are fixed in `supabase/functions/daily-digest/digest
   ("Wer holt heute ab?").
 - The person who is entered gets the push "Zeit zum Losfahren" `remind_minutes` before the pickup (30 by default,
   set in "Abholung & Ferien"). Only that person's phones get it. It is sent once per day (slot `pickup`).
-- Setup: apply `supabase/migrations/20261127160000_pickup_driver.sql` and deploy the new version of the function.
+- A single day can differ from the weekly time (table `pickup_overrides`): the card has "Nur dieser Tag" with a
+  changed time, "Abholung entfällt" and "Auf normale Zeit zurücksetzen". The digest and the reminder use it.
+- Setup: apply `supabase/migrations/20261127160000_pickup_driver.sql` and
+  `supabase/migrations/20261127180000_pickup_overrides.sql`, then deploy the new version of the function.
 
 ## How it works
 

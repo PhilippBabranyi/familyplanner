@@ -6,7 +6,7 @@ import type { PushMessage } from "./push.ts";
 
 const SECRET = "s".repeat(32);
 const emptyData: FamilyData = {
-  items: [], pickups: {}, pickupRemind: {}, pickupDrivers: {}, holidays: [], tasks: [],
+  items: [], pickups: {}, pickupRemind: {}, pickupDrivers: {}, pickupOverrides: {}, holidays: [], tasks: [],
 };
 // 2026-12-03 is a Thursday: pickup at 16:20, reminder 45 minutes before, Sam picks up.
 const pickupData: FamilyData = {

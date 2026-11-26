@@ -22,6 +22,7 @@ private actor FailingSource: FamilyDataSource {
     func deleteCalendarItem(id: String) async throws { throw error }
     func setPickupTimes(_ times: [Weekday: TimeOfDay]) async throws { throw error }
     func setPickupDriver(day: String, memberId: String?) async throws { throw error }
+    func setPickupOverride(day: String, override: PickupOverride?) async throws { throw error }
     func setPickupReminder(minutes: Int) async throws { throw error }
     func addHoliday(name: String, startsOn: String, endsOn: String) async throws { throw error }
     func deleteHoliday(id: String) async throws { throw error }
@@ -51,6 +52,7 @@ private actor ReadOnlySource: FamilyDataSource {
     func deleteCalendarItem(id: String) async throws { throw error }
     func setPickupTimes(_ times: [Weekday: TimeOfDay]) async throws { throw error }
     func setPickupDriver(day: String, memberId: String?) async throws { throw error }
+    func setPickupOverride(day: String, override: PickupOverride?) async throws { throw error }
     func setPickupReminder(minutes: Int) async throws { throw error }
     func addHoliday(name: String, startsOn: String, endsOn: String) async throws { throw error }
     func deleteHoliday(id: String) async throws { throw error }
@@ -73,6 +75,20 @@ final class ViewModelTests: XCTestCase {
         XCTAssertEqual(model.driverName(on: .monday), "Alex")
         _ = await model.setPickupDriver(day: .monday, memberId: nil)
         XCTAssertNil(model.driverName(on: .monday))
+    }
+
+    func testPickupCanBeChangedForOneDayAndReset() async {
+        let monday = WeekBuilder.date(fromISO: "2026-11-23", calendar: WeekBuilder.calendar()) ?? Date()
+        let model = WeekViewModel(source: DemoDataSource(), now: monday)
+        await model.load()
+        XCTAssertEqual(model.shownPlan.pickupTime(on: .monday), .at(15, 20))
+        _ = await model.setPickupOverride(day: .monday, override: .time(.at(13, 0)))
+        XCTAssertEqual(model.shownPlan.pickupTime(on: .monday), .at(13, 0))
+        XCTAssertEqual(model.shownPlan.pickupTime(on: .tuesday), .at(15, 20))
+        _ = await model.setPickupOverride(day: .monday, override: .cancelled)
+        XCTAssertNil(model.shownPlan.pickupTime(on: .monday))
+        _ = await model.setPickupOverride(day: .monday, override: nil)
+        XCTAssertEqual(model.shownPlan.pickupTime(on: .monday), .at(15, 20))
     }
 
     func testPickupDriverFailureShowsMessage() async {

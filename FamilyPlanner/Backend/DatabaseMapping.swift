@@ -260,6 +260,41 @@ struct PickupDriverWrite: Encodable {
     }
 }
 
+struct PickupOverrideRow: Decodable {
+    let day: String
+    /// Nil means that there is no pickup on that day.
+    let pickupTime: String?
+
+    enum CodingKeys: String, CodingKey {
+        case day
+        case pickupTime = "pickup_time"
+    }
+
+    var override: PickupOverride {
+        pickupTime.flatMap { TimeOfDay(databaseValue: $0) }.map { .time($0) } ?? .cancelled
+    }
+}
+
+struct PickupOverrideWrite: Encodable {
+    let familyId: UUID
+    let day: String
+    let pickupTime: String?
+
+    enum CodingKeys: String, CodingKey {
+        case familyId = "family_id"
+        case day
+        case pickupTime = "pickup_time"
+    }
+
+    /// A missing time is written as null: that is how "no pickup on this day" is stored.
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(familyId, forKey: .familyId)
+        try container.encode(day, forKey: .day)
+        try container.encode(pickupTime, forKey: .pickupTime)
+    }
+}
+
 struct HolidayRow: Decodable {
     let id: UUID
     let name: String

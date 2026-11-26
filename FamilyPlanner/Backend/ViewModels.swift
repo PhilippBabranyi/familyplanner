@@ -251,6 +251,14 @@ final class WeekViewModel: ObservableObject {
         }
     }
 
+    /// Changes the pickup of one day of the shown week; nil goes back to the weekly time.
+    func setPickupOverride(day: Weekday, override: PickupOverride?) async -> Bool {
+        let dayText = FormDates.iso(shownDate(of: day))
+        return await change("Die Abholzeit konnte nicht gespeichert werden.") {
+            try await $0.setPickupOverride(day: dayText, override: override)
+        }
+    }
+
     /// Name of the person who picks up on a day of the shown week.
     func driverName(on day: Weekday) -> String? {
         guard let id = shownPlan.driverByDay[day] else { return nil }
