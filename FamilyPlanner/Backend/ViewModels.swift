@@ -42,8 +42,10 @@ final class TasksViewModel: ObservableObject {
             try await action(source)
         } catch {
             errorMessage = failure
+            errorDetail = Self.detail(of: error)
             return false
         }
+        errorDetail = nil
         await load()
         return true
     }
@@ -133,6 +135,10 @@ final class WeekViewModel: ObservableObject {
     @Published private(set) var memberName: String?
     /// Family members with an account: they can be entered as the person who picks up.
     @Published private(set) var accounts: [Member] = []
+    /// The technical reason of the last failed write, shown next to `errorMessage` in the dialogs.
+    @Published private(set) var errorDetail: String?
+    /// A short confirmation after a successful save ("Gespeichert").
+    @Published private(set) var savedNotice: String?
     @Published private(set) var errorMessage: String?
 
     /// The week of today. Today's screen and the pickup logic always work on this week.
@@ -249,6 +255,25 @@ final class WeekViewModel: ObservableObject {
         await change("Die Ferien konnten nicht gelöscht werden.") { try await $0.deleteHoliday(id: id) }
     }
 
+    /// Removes the messages of the last save, before a new one starts.
+    func clearMessages() {
+        errorMessage = nil
+        errorDetail = nil
+    }
+
+    /// Shows "Gespeichert" for a moment.
+    func announceSaved() {
+        savedNotice = "Gespeichert"
+        Task {
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            savedNotice = nil
+        }
+    }
+
+    static func detail(of error: Error) -> String {
+        String(String(describing: error).prefix(300))
+    }
+
     /// Runs a write, then reloads. Shows `failure` and returns false if the write fails.
     func change(
         _ failure: String,
@@ -258,8 +283,10 @@ final class WeekViewModel: ObservableObject {
             try await action(source)
         } catch {
             errorMessage = failure
+            errorDetail = Self.detail(of: error)
             return false
         }
+        errorDetail = nil
         await load()
         return true
     }

@@ -35,6 +35,15 @@ struct PickupSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                if let message = model.errorMessage {
+                    Section {
+                        Text(message).font(.system(size: 14, weight: .semibold))
+                        if let detail = model.errorDetail {
+                            Text(detail).font(.system(size: 12)).foregroundStyle(.secondary)
+                        }
+                    }
+                    .accessibilityIdentifier("pickup-error")
+                }
                 if model.children.count > 1 {
                     Section {
                         Picker("Kind", selection: $childId) {
@@ -183,6 +192,7 @@ struct PickupSheet: View {
 
     private func save() {
         isSaving = true
+        model.clearMessages()
         var result: [Weekday: TimeOfDay] = [:]
         for day in enabled {
             result[day] = FormDates.time(from: times[day] ?? Date())
@@ -190,7 +200,10 @@ struct PickupSheet: View {
         Task {
             let timesSaved = await model.savePickups(result, remindMinutes: remindMinutes, child: childId)
             let notesSaved = await model.saveRhythm(from: rhythmStart, texts: bringTexts, child: childId)
-            if timesSaved && notesSaved { dismiss() }
+            if timesSaved && notesSaved {
+                model.announceSaved()
+                dismiss()
+            }
             isSaving = false
         }
     }

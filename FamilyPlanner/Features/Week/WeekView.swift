@@ -45,6 +45,9 @@ struct WeekView: View {
                 if let message = model.errorMessage {
                     ErrorBanner(message: message)
                 }
+                if let notice = model.savedNotice {
+                    NoticeBanner(message: notice)
+                }
 
                 weekNavigator
 

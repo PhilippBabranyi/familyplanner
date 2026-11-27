@@ -73,6 +73,18 @@ final class ViewModelTests: XCTestCase {
         XCTAssertEqual(model.errorMessage, "Der Pickup konnte nicht gespeichert werden.")
     }
 
+    func testFailedSaveKeepsTheReasonAndSuccessAnnouncesIt() async {
+        let model = WeekViewModel(source: ReadOnlySource())
+        await model.load()
+        _ = await model.setPickupDriver(day: .monday, memberId: "Alex")
+        XCTAssertNotNil(model.errorDetail)
+        model.clearMessages()
+        XCTAssertNil(model.errorMessage)
+        XCTAssertNil(model.errorDetail)
+        model.announceSaved()
+        XCTAssertEqual(model.savedNotice, "Gespeichert")
+    }
+
     func testTasksLoadFromSource() async {
         let model = TasksViewModel(source: DemoDataSource())
         await model.load()
