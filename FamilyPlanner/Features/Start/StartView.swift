@@ -100,6 +100,11 @@ struct StartView: View {
                 }
                 .foregroundStyle(Theme.text)
             }
+            if let bring = model.plan.bringByDay[model.todayWeekday] {
+                Text("🎒 \(bring)")
+                    .foregroundStyle(Theme.text)
+                    .accessibilityIdentifier("start-bring")
+            }
             ForEach(items.prefix(Self.maxItems)) { item in
                 let someoneElse = item.isForSomeoneElse(than: model.memberName)
                 HStack(spacing: 10) {
@@ -144,8 +149,8 @@ struct StartView: View {
     }
 
     private func pickupText(_ pickup: TodayPickup) -> String {
-        guard let driver = pickup.driver else { return "Pickup \(pickup.time): noch niemand eingetragen" }
-        return "Pickup \(pickup.time): \(driver) holt ab"
+        guard let driver = pickup.driver else { return "\(model.pickupLabel) \(pickup.time): noch niemand eingetragen" }
+        return "\(model.pickupLabel) \(pickup.time): \(driver) holt ab"
     }
 
     private func dotColor(for pickup: TodayPickup) -> Color {

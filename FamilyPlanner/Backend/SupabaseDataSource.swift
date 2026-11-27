@@ -144,6 +144,16 @@ actor SupabaseDataSource: FamilyDataSource {
         let reminderRows: [PickupReminderRow] = (try? await client.from("pickup_times")
             .select("remind_minutes")
             .execute().value) ?? []
+        // The notes and the label are extras that need their migration: without it they are simply empty.
+        let noteRows: [PickupNoteRow] = (try? await client.from("pickup_notes")
+            .select("weekday,valid_from,note")
+            .execute().value) ?? []
+        let noteDayRows: [PickupNoteOverrideRow] = (try? await client.from("pickup_note_overrides")
+            .select("day,note")
+            .execute().value) ?? []
+        let labelRows: [FamilyLabelRow] = (try? await client.from("families")
+            .select("pickup_label")
+            .execute().value) ?? []
         return CalendarData(
             items: rows.compactMap { row in
                 var item = row.makeItem(names: names)
@@ -157,7 +167,10 @@ actor SupabaseDataSource: FamilyDataSource {
                 overrideRows.map { ($0.day, $0.override) },
                 uniquingKeysWith: { _, last in last }
             ),
-            remindMinutes: reminderRows.first?.remindMinutes ?? 30
+            remindMinutes: reminderRows.first?.remindMinutes ?? 30,
+            pickupNotes: noteRows.compactMap(\.model),
+            pickupNoteOverrides: Dictionary(noteDayRows.map { ($0.day, $0.note) }, uniquingKeysWith: { _, last in last }),
+            pickupLabel: labelRows.first?.pickupLabel ?? "Pickup"
         )
     }
 
@@ -210,6 +223,23 @@ actor SupabaseDataSource: FamilyDataSource {
         if case let .time(value) = override { time = value.databaseValue }
         let write = PickupOverrideWrite(familyId: try await familyId(), day: day, pickupTime: time)
         try await client.from("pickup_overrides").upsert(write, onConflict: "family_id,day").execute()
+    }
+
+    func setPickupNotes(_ notes: [PickupNote]) async throws {
+        let family = try await familyId()
+        let writes = notes.map {
+            PickupNoteWrite(familyId: family, weekday: $0.weekday.rawValue, validFrom: $0.validFrom, note: $0.note)
+        }
+        try await client.from("pickup_notes").upsert(writes, onConflict: "family_id,weekday,valid_from").execute()
+    }
+
+    func setPickupNoteOverride(day: String, note: String?) async throws {
+        guard let note else {
+            try await client.from("pickup_note_overrides").delete().eq("day", value: day).execute()
+            return
+        }
+        let write = PickupNoteOverrideWrite(familyId: try await familyId(), day: day, note: note)
+        try await client.from("pickup_note_overrides").upsert(write, onConflict: "family_id,day").execute()
     }
 
     func setPickupReminder(minutes: Int) async throws {

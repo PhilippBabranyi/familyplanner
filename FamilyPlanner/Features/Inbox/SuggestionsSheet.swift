@@ -20,7 +20,7 @@ struct SuggestionsSheet: View {
                         ErrorBanner(message: message)
                     }
                     ForEach(week.openPickups()) { pickup in
-                        OpenPickupCard(pickup: pickup, accounts: week.accounts) { member in
+                        OpenPickupCard(pickup: pickup, accounts: week.accounts, label: week.pickupLabel) { member in
                             Task { _ = await week.setPickupDriver(dayText: pickup.dayText, memberId: member.id) }
                         }
                     }

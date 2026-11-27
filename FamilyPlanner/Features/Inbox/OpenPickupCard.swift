@@ -4,13 +4,14 @@ import SwiftUI
 struct OpenPickupCard: View {
     let pickup: OpenPickup
     let accounts: [Member]
+    let label: String
     let choose: (Member) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Circle().fill(Theme.pickupOpen).frame(width: 10, height: 10)
-                Text("Pickup")
+                Text(label)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Theme.muted)
                 Spacer()

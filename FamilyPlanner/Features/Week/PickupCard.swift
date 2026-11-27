@@ -8,6 +8,8 @@ struct PickupCard: View {
 
     @State private var editsTime = false
     @State private var newTime = Date()
+    @State private var editsBring = false
+    @State private var newBring = ""
 
     private var plan: WeekPlan { model.shownPlan }
     private var time: TimeOfDay? { plan.pickupTime(on: day) }
@@ -16,6 +18,13 @@ struct PickupCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
+            if let bring = plan.bringByDay[day] {
+                Text("🎒 \(bring)")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Theme.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("pickup-bring")
+            }
             HStack(spacing: 8) {
                 if time != nil { driverMenu }
                 changeMenu
@@ -28,6 +37,7 @@ struct PickupCard: View {
             in: RoundedRectangle(cornerRadius: 30, style: .continuous)
         )
         .sheet(isPresented: $editsTime) { timeSheet }
+        .sheet(isPresented: $editsBring) { bringSheet }
     }
 
     private var highlighted: Bool { override != nil }
@@ -38,7 +48,7 @@ struct PickupCard: View {
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(Theme.text)
             VStack(alignment: .leading, spacing: 2) {
-                Text("ABHOLUNG")
+                Text(model.pickupLabel.uppercased())
                     .font(.system(size: 11, weight: .bold))
                     .tracking(1.2)
                     .foregroundStyle(Theme.muted)
@@ -96,6 +106,13 @@ struct PickupCard: View {
             if override != nil {
                 Button("Auf normale Zeit zurücksetzen") { apply(nil) }
             }
+            Button("Mitnehmen nur an diesem Tag ändern") {
+                newBring = plan.bringByDay[day] ?? ""
+                editsBring = true
+            }
+            if plan.bringChangedDays.contains(day) {
+                Button("Mitnehmen wie üblich") { Task { _ = await model.setBringNote(day: day, note: nil) } }
+            }
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "calendar.badge.clock")
@@ -110,7 +127,7 @@ struct PickupCard: View {
     private var timeSheet: some View {
         NavigationStack {
             Form {
-                DatePicker("Pickup", selection: $newTime, displayedComponents: .hourAndMinute)
+                DatePicker(model.pickupLabel, selection: $newTime, displayedComponents: .hourAndMinute)
                     .accessibilityIdentifier("override-time")
             }
             .softFormStyle()
@@ -126,6 +143,36 @@ struct PickupCard: View {
                         apply(.time(FormDates.time(from: newTime)))
                     }
                     .accessibilityIdentifier("override-save")
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private var bringSheet: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Was mitnehmen?", text: $newBring)
+                        .accessibilityIdentifier("bring-text")
+                } footer: {
+                    Text("Gilt nur an diesem Tag. Leer lassen heißt: nichts mitnehmen.")
+                }
+            }
+            .softFormStyle()
+            .navigationTitle("Mitnehmen")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") { editsBring = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Sichern") {
+                        editsBring = false
+                        let text = newBring.trimmingCharacters(in: .whitespacesAndNewlines)
+                        Task { _ = await model.setBringNote(day: day, note: text) }
+                    }
+                    .accessibilityIdentifier("bring-save")
                 }
             }
         }

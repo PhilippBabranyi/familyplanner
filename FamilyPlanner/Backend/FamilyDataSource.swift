@@ -23,6 +23,10 @@ protocol FamilyDataSource {
     func setPickupDriver(day: String, memberId: String?) async throws
     /// Changes the pickup on a single day (`yyyy-MM-dd`); nil goes back to the weekly pickup time.
     func setPickupOverride(day: String, override: PickupOverride?) async throws
+    /// Stores rhythm rows of the "take along" notes (one per weekday and start day).
+    func setPickupNotes(_ notes: [PickupNote]) async throws
+    /// Sets the note of a single day (`yyyy-MM-dd`); nil goes back to the rhythm.
+    func setPickupNoteOverride(day: String, note: String?) async throws
     /// Minutes before the pickup at which the reminder comes.
     func setPickupReminder(minutes: Int) async throws
     func addHoliday(name: String, startsOn: String, endsOn: String) async throws
@@ -39,6 +43,12 @@ protocol FamilyDataSource {
     func loadMembers() async throws -> [Member]
     /// Display name of the signed-in person, if known.
     func currentMemberName() async throws -> String?
+}
+
+extension FamilyDataSource {
+    // Sources without notes (tests) ignore them.
+    func setPickupNotes(_ notes: [PickupNote]) async throws {}
+    func setPickupNoteOverride(day: String, note: String?) async throws {}
 }
 
 /// In-memory source with invented data. Used for UI tests and previews.
@@ -124,6 +134,17 @@ actor DemoDataSource: FamilyDataSource {
 
     func setPickupOverride(day: String, override: PickupOverride?) async throws {
         calendar.pickupOverrides[day] = override
+    }
+
+    func setPickupNotes(_ notes: [PickupNote]) async throws {
+        for note in notes {
+            calendar.pickupNotes.removeAll { $0.weekday == note.weekday && $0.validFrom == note.validFrom }
+            calendar.pickupNotes.append(note)
+        }
+    }
+
+    func setPickupNoteOverride(day: String, note: String?) async throws {
+        calendar.pickupNoteOverrides[day] = note
     }
 
     func setPickupReminder(minutes: Int) async throws {

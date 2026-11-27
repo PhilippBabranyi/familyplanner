@@ -86,3 +86,55 @@ struct PickupOverrideWrite: Encodable {
         try container.encode(pickupTime, forKey: .pickupTime)
     }
 }
+
+struct PickupNoteRow: Decodable {
+    let weekday: Int
+    let validFrom: String
+    let note: String
+
+    enum CodingKeys: String, CodingKey {
+        case weekday, note
+        case validFrom = "valid_from"
+    }
+
+    var model: PickupNote? {
+        Weekday(rawValue: weekday).map { PickupNote(weekday: $0, validFrom: validFrom, note: note) }
+    }
+}
+
+struct PickupNoteWrite: Encodable {
+    let familyId: UUID
+    let weekday: Int
+    let validFrom: String
+    let note: String
+
+    enum CodingKeys: String, CodingKey {
+        case weekday, note
+        case familyId = "family_id"
+        case validFrom = "valid_from"
+    }
+}
+
+struct PickupNoteOverrideRow: Decodable {
+    let day: String
+    let note: String
+}
+
+struct PickupNoteOverrideWrite: Encodable {
+    let familyId: UUID
+    let day: String
+    let note: String
+
+    enum CodingKeys: String, CodingKey {
+        case day, note
+        case familyId = "family_id"
+    }
+}
+
+struct FamilyLabelRow: Decodable {
+    let pickupLabel: String
+
+    enum CodingKeys: String, CodingKey {
+        case pickupLabel = "pickup_label"
+    }
+}

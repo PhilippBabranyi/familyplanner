@@ -321,7 +321,7 @@ final class WeekViewModel: ObservableObject {
     }
 
     /// Runs a write, then reloads. Shows `failure` and returns false if the write fails.
-    private func change(
+    func change(
         _ failure: String,
         _ action: (FamilyDataSource) async throws -> Void
     ) async -> Bool {

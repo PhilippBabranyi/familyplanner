@@ -71,6 +71,11 @@ struct CalendarData {
     var pickupOverrides: [String: PickupOverride] = [:]
     /// Minutes before the pickup at which the person who picks up gets the reminder.
     var remindMinutes = 30
+    /// What to take along, by weekday and start day (the rhythm), and for single days by `yyyy-MM-dd`.
+    var pickupNotes: [PickupNote] = []
+    var pickupNoteOverrides: [String: String] = [:]
+    /// How the family calls the pickup.
+    var pickupLabel = "Pickup"
 }
 
 /// Input of the task form. A nil id creates a new task.
