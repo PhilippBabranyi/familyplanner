@@ -128,11 +128,8 @@ final class ShoppingViewModel: ObservableObject {
 
 @MainActor
 final class WeekViewModel: ObservableObject {
-    @Published private(set) var data = CalendarData()
-    @Published private(set) var plan = WeekPlan(
-        pickup: PickupSchedule(pickupDays: [], defaultTime: .at(15, 0), exceptions: [:]),
-        itemsByDay: [:]
-    )
+    /// One entry per child with a pickup; the items and holidays are the same in all of them.
+    @Published private(set) var calendars = [CalendarData()]
     @Published private(set) var memberName: String?
     /// Family members with an account: they can be entered as the person who picks up.
     @Published private(set) var accounts: [Member] = []
@@ -143,8 +140,8 @@ final class WeekViewModel: ObservableObject {
     /// The week the week screen currently shows; the person can leave the current week.
     @Published private(set) var shownWeekStart: Date
     let today: Date
-    private let source: FamilyDataSource
-    private let calendar = WeekBuilder.calendar()
+    let source: FamilyDataSource
+    let calendar = WeekBuilder.calendar()
 
     init(source: FamilyDataSource, now: Date = Date()) {
         self.source = source
@@ -152,11 +149,6 @@ final class WeekViewModel: ObservableObject {
         let start = WeekBuilder.weekStart(containing: now, calendar: WeekBuilder.calendar())
         self.weekStart = start
         self.shownWeekStart = start
-    }
-
-    /// The plan of the week that the week screen shows.
-    var shownPlan: WeekPlan {
-        WeekBuilder.plan(data: data, weekStart: shownWeekStart, calendar: calendar)
     }
 
     var isShowingCurrentWeek: Bool { shownWeekStart == weekStart }
@@ -217,8 +209,8 @@ final class WeekViewModel: ObservableObject {
             AssigneePalette.setRoster(members)
         }
         do {
-            data = try await source.loadCalendar()
-            plan = WeekBuilder.plan(data: data, weekStart: weekStart, calendar: calendar)
+            let loaded = try await source.loadCalendar()
+            calendars = loaded.isEmpty ? [CalendarData()] : loaded
             errorMessage = nil
         } catch {
             // A request that was cancelled (the view went away, a newer load started) is not an error.
@@ -239,73 +231,10 @@ final class WeekViewModel: ObservableObject {
         await change("Der Termin konnte nicht gelöscht werden.") { try await $0.deleteCalendarItem(id: id) }
     }
 
-    func savePickups(_ times: [Weekday: TimeOfDay], remindMinutes: Int? = nil) async -> Bool {
-        await change("Die Abholzeiten konnten nicht gespeichert werden.") {
-            try await $0.setPickupTimes(times)
-            if let remindMinutes { try await $0.setPickupReminder(minutes: remindMinutes) }
-        }
-    }
-
-    /// Enters who picks up on a day of the shown week, or nobody (nil).
-    func setPickupDriver(day: Weekday, memberId: String?) async -> Bool {
-        await setPickupDriver(dayText: FormDates.iso(shownDate(of: day)), memberId: memberId)
-    }
-
-    /// Enters who picks up on any day (`yyyy-MM-dd`), or nobody (nil).
-    func setPickupDriver(dayText: String, memberId: String?) async -> Bool {
-        await change("Der Pickup konnte nicht gespeichert werden.") {
-            try await $0.setPickupDriver(day: dayText, memberId: memberId)
-        }
-    }
-
-    /// Pickups of today (if not yet over) and tomorrow that nobody has taken over. They show up in the bell.
-    func openPickups(now: Date = Date()) -> [OpenPickup] {
-        let parts = calendar.dateComponents([.hour, .minute], from: now)
-        let current = TimeOfDay.at(parts.hour ?? 0, parts.minute ?? 0)
-        var result: [OpenPickup] = []
-        for offset in 0...1 {
-            guard let date = calendar.date(byAdding: .day, value: offset, to: now) else { continue }
-            let start = WeekBuilder.weekStart(containing: date, calendar: calendar)
-            let weekPlan = WeekBuilder.plan(data: data, weekStart: start, calendar: calendar)
-            let day = WeekBuilder.weekday(of: date, calendar: calendar)
-            guard weekPlan.pickupMark(on: day) == .open, let time = weekPlan.pickupTime(on: day) else { continue }
-            if offset == 0 && time < current { continue }
-            let dayText = WeekBuilder.isoString(date, calendar: calendar)
-            result.append(OpenPickup(dayText: dayText, time: time, isToday: offset == 0))
-        }
-        return result
-    }
-
-    /// Changes the pickup of one day of the shown week; nil goes back to the weekly time.
-    func setPickupOverride(day: Weekday, override: PickupOverride?) async -> Bool {
-        let dayText = FormDates.iso(shownDate(of: day))
-        return await change("Die Abholzeit konnte nicht gespeichert werden.") {
-            try await $0.setPickupOverride(day: dayText, override: override)
-        }
-    }
-
-    /// Name of the person who picks up on a day of the shown week.
-    func driverName(on day: Weekday) -> String? {
-        accountName(shownPlan.driverByDay[day])
-    }
-
-    /// Today's pickup, nil if there is none.
-    var todayPickup: TodayPickup? {
-        guard let time = plan.pickupTime(on: todayWeekday), let mark = plan.pickupMark(on: todayWeekday) else {
-            return nil
-        }
-        return TodayPickup(time: time, driver: accountName(plan.driverByDay[todayWeekday]), mark: mark)
-    }
-
     /// True if the item of today has already begun.
     func hasStarted(_ item: WeekItem, at now: Date = Date()) -> Bool {
         let parts = calendar.dateComponents([.hour, .minute], from: now)
         return item.time < TimeOfDay.at(parts.hour ?? 0, parts.minute ?? 0)
-    }
-
-    private func accountName(_ id: String?) -> String? {
-        guard let id else { return nil }
-        return accounts.first { $0.id == id }?.name ?? "jemand"
     }
 
     func addHoliday(name: String, startsOn: String, endsOn: String) async -> Bool {

@@ -17,13 +17,13 @@ private actor FailingSource: FamilyDataSource {
     func loadShoppingList() async throws -> ShoppingList { throw error }
     func addShoppingItem(name: String) async throws -> ShoppingItem { throw error }
     func setInBasket(id: String, inBasket: Bool) async throws { throw error }
-    func loadCalendar() async throws -> CalendarData { throw error }
+    func loadCalendar() async throws -> [CalendarData] { throw error }
     func saveCalendarItem(_ draft: CalendarItemDraft) async throws { throw error }
     func deleteCalendarItem(id: String) async throws { throw error }
-    func setPickupTimes(_ times: [Weekday: TimeOfDay]) async throws { throw error }
-    func setPickupDriver(day: String, memberId: String?) async throws { throw error }
-    func setPickupOverride(day: String, override: PickupOverride?) async throws { throw error }
-    func setPickupReminder(minutes: Int) async throws { throw error }
+    func setPickupTimes(_ times: [Weekday: TimeOfDay], child: String?) async throws { throw error }
+    func setPickupDriver(day: String, memberId: String?, child: String?) async throws { throw error }
+    func setPickupOverride(day: String, override: PickupOverride?, child: String?) async throws { throw error }
+    func setPickupReminder(minutes: Int, child: String?) async throws { throw error }
     func addHoliday(name: String, startsOn: String, endsOn: String) async throws { throw error }
     func deleteHoliday(id: String) async throws { throw error }
     func loadSuggestions() async throws -> [InboxSuggestion] { throw error }
@@ -47,13 +47,13 @@ private actor ReadOnlySource: FamilyDataSource {
     func loadShoppingList() async throws -> ShoppingList { try await demo.loadShoppingList() }
     func addShoppingItem(name: String) async throws -> ShoppingItem { throw error }
     func setInBasket(id: String, inBasket: Bool) async throws { throw error }
-    func loadCalendar() async throws -> CalendarData { try await demo.loadCalendar() }
+    func loadCalendar() async throws -> [CalendarData] { try await demo.loadCalendar() }
     func saveCalendarItem(_ draft: CalendarItemDraft) async throws { throw error }
     func deleteCalendarItem(id: String) async throws { throw error }
-    func setPickupTimes(_ times: [Weekday: TimeOfDay]) async throws { throw error }
-    func setPickupDriver(day: String, memberId: String?) async throws { throw error }
-    func setPickupOverride(day: String, override: PickupOverride?) async throws { throw error }
-    func setPickupReminder(minutes: Int) async throws { throw error }
+    func setPickupTimes(_ times: [Weekday: TimeOfDay], child: String?) async throws { throw error }
+    func setPickupDriver(day: String, memberId: String?, child: String?) async throws { throw error }
+    func setPickupOverride(day: String, override: PickupOverride?, child: String?) async throws { throw error }
+    func setPickupReminder(minutes: Int, child: String?) async throws { throw error }
     func addHoliday(name: String, startsOn: String, endsOn: String) async throws { throw error }
     func deleteHoliday(id: String) async throws { throw error }
     func loadSuggestions() async throws -> [InboxSuggestion] { try await demo.loadSuggestions() }

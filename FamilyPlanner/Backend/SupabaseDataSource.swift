@@ -3,6 +3,8 @@ import Supabase
 
 enum DataSourceError: Error {
     case noFamily
+    /// No person of the household is marked as having a pickup.
+    case noChild
 }
 
 /// Reads and writes the family's data. Row-level security in the database decides what is allowed.
@@ -112,15 +114,12 @@ actor SupabaseDataSource: FamilyDataSource {
 
     // MARK: Calendar
 
-    func loadCalendar() async throws -> CalendarData {
+    func loadCalendar() async throws -> [CalendarData] {
         let rows: [CalendarItemRow] = try await client.from("calendar_items")
             .select(
                 "id,title,note,starts_on,at_time,weekdays,repeat_until,skip_holidays,"
                     + "assignee,assignee_person,cash_cents"
             )
-            .execute().value
-        let pickupRows: [PickupRow] = try await client.from("pickup_times")
-            .select("weekday,pickup_time")
             .execute().value
         let holidayRows: [HolidayRow] = try await client.from("holidays")
             .select("id,name,starts_on,ends_on")
@@ -128,23 +127,23 @@ actor SupabaseDataSource: FamilyDataSource {
             .execute().value
         let names = try await peopleNames()
         let sources = await loadSources(table: "calendar_items")
-        var pickups: [Weekday: TimeOfDay] = [:]
-        for row in pickupRows {
-            if let day = Weekday(rawValue: row.weekday), let time = TimeOfDay(databaseValue: row.pickupTime) {
-                pickups[day] = time
-            }
-        }
-        var data = CalendarData(
+        let shared = CalendarData(
             items: rows.compactMap { row in
                 var item = row.makeItem(names: names)
                 item?.source = sources[row.id.uuidString]
                 return item
             },
-            pickups: pickups,
             holidays: holidayRows.map { $0.makeHoliday() }
         )
-        await loadPickupExtras(into: &data)
-        return data
+        let children = await loadPickupChildren()
+        if children.isEmpty { return [shared] }
+        var result: [CalendarData] = []
+        for child in children {
+            var data = shared
+            await loadPickup(of: child, into: &data)
+            result.append(data)
+        }
+        return result
     }
 
     func saveCalendarItem(_ draft: CalendarItemDraft) async throws {
@@ -164,61 +163,80 @@ actor SupabaseDataSource: FamilyDataSource {
         try await client.from("calendar_items").delete().eq("id", value: id).execute()
     }
 
-    func setPickupTimes(_ times: [Weekday: TimeOfDay]) async throws {
+    func setPickupTimes(_ times: [Weekday: TimeOfDay], child: String?) async throws {
         let familyId = try await familyId()
+        let person = try await pickupChildId(child)
         let rows = times.map {
-            PickupWrite(familyId: familyId, weekday: $0.key.rawValue, pickupTime: $0.value.databaseValue)
+            PickupWrite(
+                familyId: familyId, personId: person, weekday: $0.key.rawValue, pickupTime: $0.value.databaseValue
+            )
         }
         if !rows.isEmpty {
-            try await client.from("pickup_times").upsert(rows, onConflict: "family_id,weekday").execute()
+            try await client.from("pickup_times")
+                .upsert(rows, onConflict: "family_id,person_id,weekday").execute()
         }
         for day in Weekday.allCases where times[day] == nil {
-            try await client.from("pickup_times").delete().eq("weekday", value: day.rawValue).execute()
+            try await client.from("pickup_times").delete()
+                .eq("person_id", value: person.uuidString).eq("weekday", value: day.rawValue).execute()
         }
     }
 
-    func setPickupDriver(day: String, memberId: String?) async throws {
+    func setPickupDriver(day: String, memberId: String?, child: String?) async throws {
+        let person = try await pickupChildId(child)
         guard let memberId else {
-            try await client.from("pickup_drivers").delete().eq("day", value: day).execute()
+            try await client.from("pickup_drivers").delete()
+                .eq("person_id", value: person.uuidString).eq("day", value: day).execute()
             return
         }
         guard let driver = UUID(uuidString: memberId) else { return }
-        let write = PickupDriverWrite(familyId: try await familyId(), day: day, driver: driver.uuidString.lowercased())
-        try await client.from("pickup_drivers").upsert(write, onConflict: "family_id,day").execute()
+        let write = PickupDriverWrite(
+            familyId: try await familyId(), personId: person, day: day, driver: driver.uuidString.lowercased()
+        )
+        try await client.from("pickup_drivers").upsert(write, onConflict: "family_id,person_id,day").execute()
     }
 
-    func setPickupOverride(day: String, override: PickupOverride?) async throws {
+    func setPickupOverride(day: String, override: PickupOverride?, child: String?) async throws {
+        let person = try await pickupChildId(child)
         guard let override else {
-            try await client.from("pickup_overrides").delete().eq("day", value: day).execute()
+            try await client.from("pickup_overrides").delete()
+                .eq("person_id", value: person.uuidString).eq("day", value: day).execute()
             return
         }
         var time: String?
         if case let .time(value) = override { time = value.databaseValue }
-        let write = PickupOverrideWrite(familyId: try await familyId(), day: day, pickupTime: time)
-        try await client.from("pickup_overrides").upsert(write, onConflict: "family_id,day").execute()
+        let write = PickupOverrideWrite(familyId: try await familyId(), personId: person, day: day, pickupTime: time)
+        try await client.from("pickup_overrides").upsert(write, onConflict: "family_id,person_id,day").execute()
     }
 
-    func setPickupNotes(_ notes: [PickupNote]) async throws {
+    func setPickupNotes(_ notes: [PickupNote], child: String?) async throws {
         let family = try await familyId()
+        let person = try await pickupChildId(child)
         let writes = notes.map {
-            PickupNoteWrite(familyId: family, weekday: $0.weekday.rawValue, validFrom: $0.validFrom, note: $0.note)
+            PickupNoteWrite(
+                familyId: family, personId: person, weekday: $0.weekday.rawValue, validFrom: $0.validFrom,
+                note: $0.note
+            )
         }
-        try await client.from("pickup_notes").upsert(writes, onConflict: "family_id,weekday,valid_from").execute()
+        try await client.from("pickup_notes")
+            .upsert(writes, onConflict: "family_id,person_id,weekday,valid_from").execute()
     }
 
-    func setPickupNoteOverride(day: String, note: String?) async throws {
+    func setPickupNoteOverride(day: String, note: String?, child: String?) async throws {
+        let person = try await pickupChildId(child)
         guard let note else {
-            try await client.from("pickup_note_overrides").delete().eq("day", value: day).execute()
+            try await client.from("pickup_note_overrides").delete()
+                .eq("person_id", value: person.uuidString).eq("day", value: day).execute()
             return
         }
-        let write = PickupNoteOverrideWrite(familyId: try await familyId(), day: day, note: note)
-        try await client.from("pickup_note_overrides").upsert(write, onConflict: "family_id,day").execute()
+        let write = PickupNoteOverrideWrite(familyId: try await familyId(), personId: person, day: day, note: note)
+        try await client.from("pickup_note_overrides").upsert(write, onConflict: "family_id,person_id,day").execute()
     }
 
-    func setPickupReminder(minutes: Int) async throws {
+    func setPickupReminder(minutes: Int, child: String?) async throws {
+        let person = try await pickupChildId(child)
         try await client.from("pickup_times")
             .update(["remind_minutes": minutes])
-            .gte("weekday", value: 1)
+            .eq("person_id", value: person.uuidString)
             .execute()
     }
 

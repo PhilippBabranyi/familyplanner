@@ -14,11 +14,13 @@ struct PickupRow: Decodable {
 
 struct PickupWrite: Encodable {
     let familyId: UUID
+    let personId: UUID
     let weekday: Int
     let pickupTime: String
 
     enum CodingKeys: String, CodingKey {
         case familyId = "family_id"
+        case personId = "person_id"
         case weekday
         case pickupTime = "pickup_time"
     }
@@ -42,11 +44,13 @@ struct PickupDriverRow: Decodable {
 
 struct PickupDriverWrite: Encodable {
     let familyId: UUID
+    let personId: UUID
     let day: String
     let driver: String
 
     enum CodingKeys: String, CodingKey {
         case familyId = "family_id"
+        case personId = "person_id"
         case day
         case driver
     }
@@ -69,11 +73,13 @@ struct PickupOverrideRow: Decodable {
 
 struct PickupOverrideWrite: Encodable {
     let familyId: UUID
+    let personId: UUID
     let day: String
     let pickupTime: String?
 
     enum CodingKeys: String, CodingKey {
         case familyId = "family_id"
+        case personId = "person_id"
         case day
         case pickupTime = "pickup_time"
     }
@@ -82,6 +88,7 @@ struct PickupOverrideWrite: Encodable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(familyId, forKey: .familyId)
+        try container.encode(personId, forKey: .personId)
         try container.encode(day, forKey: .day)
         try container.encode(pickupTime, forKey: .pickupTime)
     }
@@ -104,6 +111,7 @@ struct PickupNoteRow: Decodable {
 
 struct PickupNoteWrite: Encodable {
     let familyId: UUID
+    let personId: UUID
     let weekday: Int
     let validFrom: String
     let note: String
@@ -111,6 +119,7 @@ struct PickupNoteWrite: Encodable {
     enum CodingKeys: String, CodingKey {
         case weekday, note
         case familyId = "family_id"
+        case personId = "person_id"
         case validFrom = "valid_from"
     }
 }
@@ -122,19 +131,26 @@ struct PickupNoteOverrideRow: Decodable {
 
 struct PickupNoteOverrideWrite: Encodable {
     let familyId: UUID
+    let personId: UUID
     let day: String
     let note: String
 
     enum CodingKeys: String, CodingKey {
         case day, note
         case familyId = "family_id"
+        case personId = "person_id"
     }
 }
 
-struct FamilyLabelRow: Decodable {
-    let pickupLabel: String
+/// A person of the household that has a pickup (`household_people.has_pickup`).
+struct PickupChildRow: Decodable {
+    let id: UUID
+    let displayName: String
 
     enum CodingKeys: String, CodingKey {
-        case pickupLabel = "pickup_label"
+        case id
+        case displayName = "display_name"
     }
+
+    var model: PickupChild { PickupChild(id: id.uuidString, name: displayName) }
 }

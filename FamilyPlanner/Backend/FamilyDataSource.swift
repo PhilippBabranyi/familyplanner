@@ -14,21 +14,24 @@ protocol FamilyDataSource {
     func setInBasket(id: String, inBasket: Bool) async throws
 
     // Week, today, pickups, holidays
-    func loadCalendar() async throws -> CalendarData
+    /// One entry per child with a pickup (the items and holidays are the same in all of them). With no child set up
+    /// there is a single entry without pickup data.
+    func loadCalendar() async throws -> [CalendarData]
     func saveCalendarItem(_ draft: CalendarItemDraft) async throws
     func deleteCalendarItem(id: String) async throws
-    /// Replaces all pickup times: weekdays that are missing have no pickup.
-    func setPickupTimes(_ times: [Weekday: TimeOfDay]) async throws
+    // The pickup functions take the child (`PickupChild.id`); nil means the first child.
+    /// Replaces all pickup times of a child: weekdays that are missing have no pickup.
+    func setPickupTimes(_ times: [Weekday: TimeOfDay], child: String?) async throws
     /// Who picks up on a day (`yyyy-MM-dd`); nil removes the entry, so that nobody is entered.
-    func setPickupDriver(day: String, memberId: String?) async throws
+    func setPickupDriver(day: String, memberId: String?, child: String?) async throws
     /// Changes the pickup on a single day (`yyyy-MM-dd`); nil goes back to the weekly pickup time.
-    func setPickupOverride(day: String, override: PickupOverride?) async throws
+    func setPickupOverride(day: String, override: PickupOverride?, child: String?) async throws
     /// Stores rhythm rows of the "take along" notes (one per weekday and start day).
-    func setPickupNotes(_ notes: [PickupNote]) async throws
+    func setPickupNotes(_ notes: [PickupNote], child: String?) async throws
     /// Sets the note of a single day (`yyyy-MM-dd`); nil goes back to the rhythm.
-    func setPickupNoteOverride(day: String, note: String?) async throws
+    func setPickupNoteOverride(day: String, note: String?, child: String?) async throws
     /// Minutes before the pickup at which the reminder comes.
-    func setPickupReminder(minutes: Int) async throws
+    func setPickupReminder(minutes: Int, child: String?) async throws
     func addHoliday(name: String, startsOn: String, endsOn: String) async throws
     func deleteHoliday(id: String) async throws
 
@@ -47,8 +50,8 @@ protocol FamilyDataSource {
 
 extension FamilyDataSource {
     // Sources without notes (tests) ignore them.
-    func setPickupNotes(_ notes: [PickupNote]) async throws {}
-    func setPickupNoteOverride(day: String, note: String?) async throws {}
+    func setPickupNotes(_ notes: [PickupNote], child: String?) async throws {}
+    func setPickupNoteOverride(day: String, note: String?, child: String?) async throws {}
 }
 
 /// In-memory source with invented data. Used for UI tests and previews.
@@ -102,7 +105,7 @@ actor DemoDataSource: FamilyDataSource {
         list.items[index].isInBasket = inBasket
     }
 
-    func loadCalendar() async throws -> CalendarData { calendar }
+    func loadCalendar() async throws -> [CalendarData] { [calendar] }
 
     func saveCalendarItem(_ draft: CalendarItemDraft) async throws {
         let name = DemoData.members.first { $0.id == draft.assigneeId }?.name
@@ -124,30 +127,30 @@ actor DemoDataSource: FamilyDataSource {
         calendar.items.removeAll { $0.id == id }
     }
 
-    func setPickupTimes(_ times: [Weekday: TimeOfDay]) async throws {
+    func setPickupTimes(_ times: [Weekday: TimeOfDay], child: String?) async throws {
         calendar.pickups = times
     }
 
-    func setPickupDriver(day: String, memberId: String?) async throws {
+    func setPickupDriver(day: String, memberId: String?, child: String?) async throws {
         calendar.pickupDrivers[day] = memberId
     }
 
-    func setPickupOverride(day: String, override: PickupOverride?) async throws {
+    func setPickupOverride(day: String, override: PickupOverride?, child: String?) async throws {
         calendar.pickupOverrides[day] = override
     }
 
-    func setPickupNotes(_ notes: [PickupNote]) async throws {
+    func setPickupNotes(_ notes: [PickupNote], child: String?) async throws {
         for note in notes {
             calendar.pickupNotes.removeAll { $0.weekday == note.weekday && $0.validFrom == note.validFrom }
             calendar.pickupNotes.append(note)
         }
     }
 
-    func setPickupNoteOverride(day: String, note: String?) async throws {
+    func setPickupNoteOverride(day: String, note: String?, child: String?) async throws {
         calendar.pickupNoteOverrides[day] = note
     }
 
-    func setPickupReminder(minutes: Int) async throws {
+    func setPickupReminder(minutes: Int, child: String?) async throws {
         calendar.remindMinutes = minutes
     }
 

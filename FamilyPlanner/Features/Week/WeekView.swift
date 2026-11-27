@@ -11,6 +11,8 @@ struct WeekView: View {
     /// In the current week the selected day defaults to today, in any other week to Monday.
     private var day: Weekday { selectedDay ?? (model.isShowingCurrentWeek ? model.todayWeekday : .monday) }
     private var plan: WeekPlan { model.shownPlan }
+    /// With several children the button is about all of them.
+    private var pickupButtonLabel: String { model.children.count > 1 ? "Pickup" : model.pickupLabel }
 
     var body: some View {
         ScrollView {
@@ -27,7 +29,7 @@ struct WeekView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
                         Spacer(minLength: 8)
-                        Button("\(model.pickupLabel) & Ferien") { showsPickups = true }
+                        Button("\(pickupButtonLabel) & Ferien") { showsPickups = true }
                             .lineLimit(1)
                             .fixedSize(horizontal: true, vertical: false)
                             .font(.system(size: 13, weight: .semibold))
@@ -48,8 +50,11 @@ struct WeekView: View {
 
                 dayPicker
 
-                if plan.pickupTime(on: day) != nil || plan.overrideByDay[day] != nil {
-                    PickupCard(model: model, day: day)
+                ForEach(model.children) { child in
+                    let childPlan = model.shownWeekPlan(for: child.id)
+                    if childPlan.pickupTime(on: day) != nil || childPlan.overrideByDay[day] != nil {
+                        PickupCard(model: model, day: day, child: child)
+                    }
                 }
 
                 if let holiday = plan.holidays[day] {
@@ -200,10 +205,13 @@ struct WeekView: View {
 
     /// Red: nobody picks up yet. Orange: changed for this day only. Otherwise the colour of the person.
     private func dotColor(on weekday: Weekday) -> Color {
-        switch plan.pickupMark(on: weekday) {
-        case .open?: Theme.pickupOpen
-        case .changed?: Theme.pickupChanged
-        case .assigned?: AssigneePalette.color(for: model.driverName(on: weekday))
+        switch model.shownDot(on: weekday) {
+        case let (mark, driver)?:
+            switch mark {
+            case .open: Theme.pickupOpen
+            case .changed: Theme.pickupChanged
+            case .assigned: AssigneePalette.color(for: driver)
+            }
         case nil: Color.clear
         }
     }

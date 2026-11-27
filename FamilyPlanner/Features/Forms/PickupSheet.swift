@@ -14,23 +14,39 @@ struct PickupSheet: View {
     @State private var isSaving = false
     @State private var rhythmStart = Date()
     @State private var bringTexts: [Weekday: String]
+    /// The child whose pickup is edited. Several children each have their own times and notes.
+    @State private var childId: String?
 
     init(model: WeekViewModel) {
         self.model = model
-        let pickups = model.data.pickups
+        let first = model.children.first?.id
+        _childId = State(initialValue: first)
+        let pickups = model.calendarData(for: first).pickups
         _enabled = State(initialValue: Set(pickups.keys))
         var initial: [Weekday: Date] = [:]
         for day in Weekday.allCases {
             initial[day] = FormDates.date(from: pickups[day] ?? .at(15, 20))
         }
         _times = State(initialValue: initial)
-        _remindMinutes = State(initialValue: model.data.remindMinutes)
-        _bringTexts = State(initialValue: model.rhythmTexts(on: Date()))
+        _remindMinutes = State(initialValue: model.calendarData(for: first).remindMinutes)
+        _bringTexts = State(initialValue: model.rhythmTexts(on: Date(), child: first))
     }
 
     var body: some View {
         NavigationStack {
             Form {
+                if model.children.count > 1 {
+                    Section {
+                        Picker("Kind", selection: $childId) {
+                            ForEach(model.children) { child in
+                                Text(child.name).tag(Optional(child.id))
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .accessibilityIdentifier("pickup-child")
+                        .onChange(of: childId) { _, _ in reload() }
+                    }
+                }
                 Section("Abholzeiten") {
                     ForEach(Weekday.allCases) { day in
                         HStack {
@@ -57,7 +73,7 @@ struct PickupSheet: View {
                 holidaySection
             }
             .softFormStyle()
-            .navigationTitle("\(model.pickupLabel) & Ferien")
+            .navigationTitle("\(model.children.count > 1 ? "Pickup" : model.pickupLabel) & Ferien")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -82,7 +98,7 @@ struct PickupSheet: View {
         Section {
             DatePicker("Gilt ab", selection: $rhythmStart, displayedComponents: .date)
                 .accessibilityIdentifier("bring-from")
-                .onChange(of: rhythmStart) { _, date in bringTexts = model.rhythmTexts(on: date) }
+                .onChange(of: rhythmStart) { _, date in bringTexts = model.rhythmTexts(on: date, child: childId) }
             ForEach(Weekday.allCases) { day in
                 HStack {
                     Text(day.shortName).frame(width: 36, alignment: .leading).foregroundStyle(Theme.muted)
@@ -152,6 +168,19 @@ struct PickupSheet: View {
         )
     }
 
+    /// Shows the times, the reminder and the notes of the chosen child.
+    private func reload() {
+        let data = model.calendarData(for: childId)
+        enabled = Set(data.pickups.keys)
+        var loaded: [Weekday: Date] = [:]
+        for day in Weekday.allCases {
+            loaded[day] = FormDates.date(from: data.pickups[day] ?? .at(15, 20))
+        }
+        times = loaded
+        remindMinutes = data.remindMinutes
+        bringTexts = model.rhythmTexts(on: rhythmStart, child: childId)
+    }
+
     private func save() {
         isSaving = true
         var result: [Weekday: TimeOfDay] = [:]
@@ -159,8 +188,8 @@ struct PickupSheet: View {
             result[day] = FormDates.time(from: times[day] ?? Date())
         }
         Task {
-            let timesSaved = await model.savePickups(result, remindMinutes: remindMinutes)
-            let notesSaved = await model.saveRhythm(from: rhythmStart, texts: bringTexts)
+            let timesSaved = await model.savePickups(result, remindMinutes: remindMinutes, child: childId)
+            let notesSaved = await model.saveRhythm(from: rhythmStart, texts: bringTexts, child: childId)
             if timesSaved && notesSaved { dismiss() }
             isSaving = false
         }
