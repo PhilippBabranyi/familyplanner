@@ -37,7 +37,7 @@ private actor FailingSource: FamilyDataSource {
 }
 
 /// Loads fine but cannot save: used to check that optimistic changes are reverted.
-private actor ReadOnlySource: FamilyDataSource {
+actor ReadOnlySource: FamilyDataSource {
     private let demo = DemoDataSource()
     private let error = URLError(.notConnectedToInternet)
     func loadTasks() async throws -> TaskBoard { try await demo.loadTasks() }
@@ -71,18 +71,6 @@ final class ViewModelTests: XCTestCase {
         let saved = await model.setPickupDriver(day: .monday, memberId: "Alex")
         XCTAssertFalse(saved)
         XCTAssertEqual(model.errorMessage, "Der Pickup konnte nicht gespeichert werden.")
-    }
-
-    func testFailedSaveKeepsTheReasonAndSuccessAnnouncesIt() async {
-        let model = WeekViewModel(source: ReadOnlySource())
-        await model.load()
-        _ = await model.setPickupDriver(day: .monday, memberId: "Alex")
-        XCTAssertNotNil(model.errorDetail)
-        model.clearMessages()
-        XCTAssertNil(model.errorMessage)
-        XCTAssertNil(model.errorDetail)
-        model.announceSaved()
-        XCTAssertEqual(model.savedNotice, "Gespeichert")
     }
 
     func testTasksLoadFromSource() async {
