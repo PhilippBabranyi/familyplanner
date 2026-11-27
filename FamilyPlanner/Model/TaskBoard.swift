@@ -44,6 +44,8 @@ struct TaskItem: Identifiable {
     var status: TaskStatus
     /// Cash needed for the task in cents, e.g. money to bring to school.
     var cashCents: Int?
+    /// The mail this task was created from, if any.
+    var source: MailSource?
 }
 
 struct TaskBoard {

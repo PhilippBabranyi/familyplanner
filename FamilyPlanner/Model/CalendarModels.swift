@@ -34,6 +34,8 @@ struct StoredCalendarItem: Identifiable {
     var assigneeId: String?
     var assignee: String?
     var cashCents: Int?
+    /// The mail this item was created from, if any.
+    var source: MailSource?
 
     var isSeries: Bool { !weekdays.isEmpty }
 }
@@ -81,6 +83,8 @@ struct TaskDraft {
     var cashCents: Int?
     /// `HH:mm`, only meaningful together with `dueOn`.
     var dueTime: String?
+    /// Set when the task comes from a mail suggestion. Only used when creating.
+    var source: MailSource?
 }
 
 /// Input of the calendar item form. A nil id creates a new item.
@@ -95,4 +99,6 @@ struct CalendarItemDraft {
     var skipHolidays: Bool
     var assigneeId: String?
     var cashCents: Int?
+    /// Set when the item comes from a mail suggestion. Only used when creating.
+    var source: MailSource?
 }
