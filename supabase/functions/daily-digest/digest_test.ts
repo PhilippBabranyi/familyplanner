@@ -9,8 +9,10 @@ import {
   type FamilyData,
   formatEuro,
   isoWeekday,
+  cleanupDue,
   pickupReminder,
   planDay,
+  suggestionCutoff,
   targetDate,
 } from "./digest.ts";
 
@@ -205,4 +207,12 @@ Deno.test("the reminder follows the changed time and stays away on a cancelled d
   assertEquals(pickupReminder(changed, thursday(15, 35)), null);
   const cancelled: FamilyData = { ...data, pickupOverrides: { "2026-12-03": null } };
   assertEquals(pickupReminder(cancelled, thursday(15, 35)), null);
+});
+
+Deno.test("old suggestions are cleaned up at night, 30 days back", () => {
+  assertEquals(cleanupDue(clock(2, 2, 59)), false);
+  assertEquals(cleanupDue(clock(2, 3, 0)), true);
+  assertEquals(cleanupDue(clock(2, 3, 59)), true);
+  assertEquals(cleanupDue(clock(2, 4, 0)), false);
+  assertEquals(suggestionCutoff(new Date("2026-12-31T02:00:00Z")), "2026-12-01T02:00:00.000Z");
 });

@@ -23,6 +23,7 @@ function setup(
   const pushes: { tokens: string[]; message: PushMessage }[] = [];
   const deleted: string[] = [];
   const tokenUsers: (string | undefined)[] = [];
+  const cleanups: string[] = [];
   const store: Store = {
     loadFamilyIds: () => Promise.resolve(["f1"]),
     loadFamilyData: () => options.failLoad ? Promise.reject(new Error("db down")) : Promise.resolve(options.data ?? emptyData),
@@ -44,6 +45,10 @@ function setup(
       deleted.push(...tokens);
       return Promise.resolve();
     },
+    deleteOldSuggestions: (before) => {
+      cleanups.push(before);
+      return Promise.resolve(2);
+    },
   };
   const deps: Dependencies = {
     store,
@@ -55,7 +60,7 @@ function setup(
     secret: SECRET,
     random: () => 0,
   };
-  return { deps, pushes, deleted, claimed, tokenUsers };
+  return { deps, pushes, deleted, claimed, tokenUsers, cleanups };
 }
 
 const call = (deps: Dependencies, headers: Record<string, string> = { "x-digest-secret": SECRET }, method = "POST") =>
@@ -135,4 +140,25 @@ Deno.test("no reminder before the lead time or when nobody is entered", async ()
   const nobody = setup({ now: THURSDAY_1540, data: { ...pickupData, pickupDrivers: {} } });
   assertEquals((await (await call(nobody.deps)).json()).sent, []);
   assertEquals(early.pushes.length + nobody.pushes.length, 0);
+});
+
+Deno.test("at night old suggestions are deleted, during the day nothing is", async () => {
+  // 03:10 in Berlin on Tuesday 2026-12-01 (UTC+1).
+  const night = setup({ now: "2026-12-01T02:10:00Z" });
+  const body = await (await call(night.deps)).json();
+  assertEquals(body.cleaned, 2);
+  assertEquals(night.cleanups, ["2026-11-01T02:10:00.000Z"]);
+  const day = setup({ now: "2026-12-01T12:00:00Z" });
+  assertEquals((await (await call(day.deps)).json()).cleaned, undefined);
+  assertEquals(day.cleanups.length, 0);
+});
+
+Deno.test("a failing cleanup does not break the call", async () => {
+  const { deps } = setup({ now: "2026-12-01T02:10:00Z" });
+  const failing: Dependencies = {
+    ...deps,
+    store: { ...deps.store, deleteOldSuggestions: () => Promise.reject(new Error("db down")) },
+  };
+  const response = await call(failing);
+  assertEquals(response.status, 200);
 });

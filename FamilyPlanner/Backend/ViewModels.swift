@@ -126,13 +126,6 @@ final class ShoppingViewModel: ObservableObject {
     }
 }
 
-/// The pickup shown on the today screen.
-struct TodayPickup: Equatable {
-    let time: TimeOfDay
-    let driver: String?
-    let mark: PickupMark
-}
-
 @MainActor
 final class WeekViewModel: ObservableObject {
     @Published private(set) var data = CalendarData()
@@ -250,12 +243,34 @@ final class WeekViewModel: ObservableObject {
         }
     }
 
-    /// Enters who picks up on a day, or nobody (nil).
+    /// Enters who picks up on a day of the shown week, or nobody (nil).
     func setPickupDriver(day: Weekday, memberId: String?) async -> Bool {
-        let dayText = FormDates.iso(shownDate(of: day))
-        return await change("Die Abholung konnte nicht gespeichert werden.") {
+        await setPickupDriver(dayText: FormDates.iso(shownDate(of: day)), memberId: memberId)
+    }
+
+    /// Enters who picks up on any day (`yyyy-MM-dd`), or nobody (nil).
+    func setPickupDriver(dayText: String, memberId: String?) async -> Bool {
+        await change("Die Abholung konnte nicht gespeichert werden.") {
             try await $0.setPickupDriver(day: dayText, memberId: memberId)
         }
+    }
+
+    /// Pickups of today (if not yet over) and tomorrow that nobody has taken over. They show up in the bell.
+    func openPickups(now: Date = Date()) -> [OpenPickup] {
+        let parts = calendar.dateComponents([.hour, .minute], from: now)
+        let current = TimeOfDay.at(parts.hour ?? 0, parts.minute ?? 0)
+        var result: [OpenPickup] = []
+        for offset in 0...1 {
+            guard let date = calendar.date(byAdding: .day, value: offset, to: now) else { continue }
+            let start = WeekBuilder.weekStart(containing: date, calendar: calendar)
+            let weekPlan = WeekBuilder.plan(data: data, weekStart: start, calendar: calendar)
+            let day = WeekBuilder.weekday(of: date, calendar: calendar)
+            guard weekPlan.pickupMark(on: day) == .open, let time = weekPlan.pickupTime(on: day) else { continue }
+            if offset == 0 && time < current { continue }
+            let dayText = WeekBuilder.isoString(date, calendar: calendar)
+            result.append(OpenPickup(dayText: dayText, time: time, isToday: offset == 0))
+        }
+        return result
     }
 
     /// Changes the pickup of one day of the shown week; nil goes back to the weekly time.

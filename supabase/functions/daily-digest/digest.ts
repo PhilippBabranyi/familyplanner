@@ -104,6 +104,19 @@ export function slotMinutes(slot: Slot, weekday: number): number {
 /** A missed tick is made up for within this time; later the slot is skipped. */
 export const CATCH_UP_MINUTES = 90;
 
+/** Mail suggestions older than this many days are deleted, decided or not. */
+export const SUGGESTION_KEEP_DAYS = 30;
+
+/** The cleanup runs in the night, from 3:00 for an hour. It is safe to run it more than once. */
+export function cleanupDue(clock: Clock): boolean {
+  return clock.minutes >= 3 * 60 && clock.minutes < 4 * 60;
+}
+
+/** Suggestions created before this moment are deleted. */
+export function suggestionCutoff(moment: Date): string {
+  return new Date(moment.getTime() - SUGGESTION_KEEP_DAYS * 24 * 3600 * 1000).toISOString();
+}
+
 /** The slots that are due right now (usually none or one). */
 export function dueSlots(clock: Clock): Slot[] {
   const due: Slot[] = [];

@@ -22,6 +22,12 @@ Times are Berlin time. They are fixed in `supabase/functions/daily-digest/digest
 - Setup: apply `supabase/migrations/20261127160000_pickup_driver.sql` and
   `supabase/migrations/20261127180000_pickup_overrides.sql`, then deploy the new version of the function.
 
+## Bell and cleanup
+
+- The bell also lists today's (if not over) and tomorrow's pickup when nobody is entered, with a button per person.
+- Every night between 3:00 and 4:00 the function deletes mail suggestions (`inbox_items`) older than 30 days,
+  whether they were decided or not. The response then has a field `cleaned` with the number. No setup needed.
+
 ## How it works
 
 A timer in the database (pg_cron) calls the Edge Function `daily-digest` every 5 minutes. The function checks the

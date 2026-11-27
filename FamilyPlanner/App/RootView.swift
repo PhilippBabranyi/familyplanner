@@ -76,7 +76,7 @@ struct RootView: View {
     }
 
     private var bell: some View {
-        BellButton(count: inbox.count) { showSuggestions = true }
+        BellButton(count: inbox.count + week.openPickups().count) { showSuggestions = true }
     }
 
     private func openSuggestionsIfRequested() {
