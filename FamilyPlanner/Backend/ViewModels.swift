@@ -42,10 +42,8 @@ final class TasksViewModel: ObservableObject {
             try await action(source)
         } catch {
             errorMessage = failure
-            errorDetail = Self.detail(of: error)
             return false
         }
-        errorDetail = nil
         await load()
         return true
     }
