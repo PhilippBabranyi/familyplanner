@@ -37,7 +37,7 @@ private actor FailingSource: FamilyDataSource {
 }
 
 /// Loads fine but cannot save: used to check that optimistic changes are reverted.
-private actor ReadOnlySource: FamilyDataSource {
+actor ReadOnlySource: FamilyDataSource {
     private let demo = DemoDataSource()
     private let error = URLError(.notConnectedToInternet)
     func loadTasks() async throws -> TaskBoard { try await demo.loadTasks() }
