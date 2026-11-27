@@ -26,6 +26,10 @@ enum Theme {
     static let blue = Color(hex: 0xA9B9C2)
     static let lavender = Color(hex: 0xBDB6C7)
     static let seed = Color(hex: 0x8C8672)
+    /// A pickup that nobody has taken over yet.
+    static let pickupOpen = Color(hex: 0xC8473F)
+    /// A pickup that was changed for one day, outside the weekly plan.
+    static let pickupChanged = Color(hex: 0xE08A3C)
     static let shadow = Color.black.opacity(0.12)
 
     /// Headline font. A serif system font for now; a custom font can be bundled later.

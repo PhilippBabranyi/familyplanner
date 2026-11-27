@@ -30,7 +30,7 @@ struct PickupCard: View {
         .sheet(isPresented: $editsTime) { timeSheet }
     }
 
-    private var highlighted: Bool { override != nil || plan.pickup.isException(on: day) }
+    private var highlighted: Bool { override != nil }
 
     private var header: some View {
         HStack(spacing: 14) {
@@ -47,17 +47,14 @@ struct PickupCard: View {
                     .foregroundStyle(Theme.text)
             }
             Spacer()
-            Text(note)
-                .font(.system(size: 13, weight: .semibold))
-                .multilineTextAlignment(.trailing)
-                .foregroundStyle(Theme.text)
-                .frame(maxWidth: 120, alignment: .trailing)
+            if override != nil {
+                Text("Nur an diesem Tag geändert")
+                    .font(.system(size: 13, weight: .semibold))
+                    .multilineTextAlignment(.trailing)
+                    .foregroundStyle(Theme.text)
+                    .frame(maxWidth: 120, alignment: .trailing)
+            }
         }
-    }
-
-    private var note: String {
-        if override != nil { return "Nur an diesem Tag geändert" }
-        return plan.pickup.isException(on: day) ? "Ausnahme: eine Stunde später" : "wie an den meisten Tagen"
     }
 
     /// Who picks up on this day. Nobody is entered by default; the morning push asks for it.
@@ -76,7 +73,9 @@ struct PickupCard: View {
             }
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: name == nil ? "person.crop.circle.badge.questionmark" : "person.crop.circle")
+                Circle()
+                    .fill(name == nil ? Theme.pickupOpen : AssigneePalette.color(for: name))
+                    .frame(width: 10, height: 10)
                 Text(name.map { "\($0) holt ab" } ?? "Wer holt ab?")
                 Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold))
             }

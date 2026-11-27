@@ -22,6 +22,10 @@ struct TodayView: View {
                     ErrorBanner(message: message)
                 }
 
+                if let pickup = model.todayPickup {
+                    PickupTodayRow(pickup: pickup)
+                }
+
                 ForEach(model.plan.items(on: model.todayWeekday)) { item in
                     WeekItemRow(item: item)
                         .contentShape(Rectangle())

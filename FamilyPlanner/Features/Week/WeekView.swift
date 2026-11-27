@@ -23,8 +23,12 @@ struct WeekView: View {
                         Text(weekTitle)
                             .font(Theme.display(36))
                             .foregroundStyle(Theme.text)
-                        Spacer()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                        Spacer(minLength: 8)
                         Button("Abholung & Ferien") { showsPickups = true }
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(Theme.text)
                             .padding(.horizontal, 14)
@@ -177,7 +181,7 @@ struct WeekView: View {
                         Text("\(model.shownDayNumber(weekday))")
                             .font(Theme.display(19))
                         Circle()
-                            .fill(changedPickup(on: weekday) ? Color(hex: 0xC98F6B) : Color.clear)
+                            .fill(dotColor(on: weekday))
                             .frame(width: 6, height: 6)
                     }
                     .foregroundStyle(isSelected ? Theme.surface : Theme.text)
@@ -191,8 +195,14 @@ struct WeekView: View {
         }
     }
 
-    private func changedPickup(on weekday: Weekday) -> Bool {
-        plan.pickup.isException(on: weekday) || plan.overrideByDay[weekday] != nil
+    /// Red: nobody picks up yet. Orange: changed for this day only. Otherwise the colour of the person.
+    private func dotColor(on weekday: Weekday) -> Color {
+        switch plan.pickupMark(on: weekday) {
+        case .open?: Theme.pickupOpen
+        case .changed?: Theme.pickupChanged
+        case .assigned?: AssigneePalette.color(for: model.driverName(on: weekday))
+        case nil: Color.clear
+        }
     }
 }
 

@@ -28,4 +28,15 @@ final class PickupTests: XCTestCase {
         _ = await model.setPickupOverride(day: .monday, override: nil)
         XCTAssertEqual(model.shownPlan.pickupTime(on: .monday), .at(15, 20))
     }
+
+    func testTodayShowsThePickupAndWhoTakesIt() async {
+        let monday = WeekBuilder.date(fromISO: "2026-11-23", calendar: WeekBuilder.calendar()) ?? Date()
+        let model = WeekViewModel(source: DemoDataSource(), now: monday)
+        await model.load()
+        XCTAssertEqual(model.todayPickup, TodayPickup(time: .at(15, 20), driver: nil, mark: .open))
+        _ = await model.setPickupDriver(day: .monday, memberId: "Alex")
+        XCTAssertEqual(model.todayPickup, TodayPickup(time: .at(15, 20), driver: "Alex", mark: .assigned))
+        _ = await model.setPickupOverride(day: .monday, override: .cancelled)
+        XCTAssertNil(model.todayPickup)
+    }
 }

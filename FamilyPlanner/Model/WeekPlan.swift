@@ -17,6 +17,14 @@ struct WeekItem: Identifiable {
     var sourceId: String?
 }
 
+/// How a day's pickup is marked: red when nobody is entered, orange when it differs from the weekly plan,
+/// otherwise in the colour of the person who picks up.
+enum PickupMark: Equatable {
+    case open
+    case changed
+    case assigned
+}
+
 /// All items of one week plus the pickup schedule.
 struct WeekPlan {
     var pickup: PickupSchedule
@@ -27,6 +35,14 @@ struct WeekPlan {
     var driverByDay: [Weekday: String] = [:]
     /// Changes of the pickup on single days of this week.
     var overrideByDay: [Weekday: PickupOverride] = [:]
+
+    /// The mark of a day's pickup, nil if there is no pickup (and no change) on that day.
+    func pickupMark(on day: Weekday) -> PickupMark? {
+        if overrideByDay[day] == .cancelled { return .changed }
+        guard pickupTime(on: day) != nil else { return nil }
+        if driverByDay[day] == nil { return .open }
+        return overrideByDay[day] == nil ? .assigned : .changed
+    }
 
     /// The pickup time of a day: the change for that day if there is one, otherwise the weekly time.
     func pickupTime(on day: Weekday) -> TimeOfDay? {
