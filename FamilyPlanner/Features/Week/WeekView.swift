@@ -6,6 +6,7 @@ struct WeekView: View {
     @State private var selectedDay: Weekday?
     @State private var editor: ItemEditorTarget?
     @State private var showsPickups = false
+    @State private var deleting: StoredCalendarItem?
 
     /// In the current week the selected day defaults to today, in any other week to Monday.
     private var day: Weekday { selectedDay ?? (model.isShowingCurrentWeek ? model.todayWeekday : .monday) }
@@ -70,6 +71,10 @@ struct WeekView: View {
                     WeekItemRow(item: item)
                         .contentShape(Rectangle())
                         .onTapGesture { edit(item) }
+                        .contextMenu {
+                            Button("Bearbeiten") { edit(item) }
+                            Button("Löschen", role: .destructive) { askToDelete(item) }
+                        }
                 }
             }
             .padding(.horizontal, 20)
@@ -92,12 +97,23 @@ struct WeekView: View {
         .addButton(identifier: "add-item") {
             editor = ItemEditorTarget(item: nil, defaultDate: model.shownDate(of: day))
         }
+        .confirmDelete(
+            $deleting,
+            title: deleting?.isSeries == true ? "Ganze Serie löschen?" : "Termin löschen?",
+            name: { $0.title },
+            onDelete: { stored in Task { _ = await model.deleteItem(id: stored.id) } }
+        )
         .sheet(item: $editor) { target in
             ItemFormSheet(model: model, target: target)
         }
         .sheet(isPresented: $showsPickups) {
             PickupSheet(model: model)
         }
+    }
+
+    private func askToDelete(_ item: WeekItem) {
+        guard let sourceId = item.sourceId else { return }
+        deleting = model.storedItem(id: sourceId)
     }
 
     private func edit(_ item: WeekItem) {

@@ -5,6 +5,7 @@ struct TasksView: View {
     @ObservedObject var model: TasksViewModel
     @State private var filter: TaskStatus = .open
     @State private var editor: TaskEditorTarget?
+    @State private var deleting: TaskItem?
 
     var body: some View {
         ScrollView {
@@ -23,6 +24,10 @@ struct TasksView: View {
                     TaskCard(task: task) { Task { await model.advance(task.id) } }
                         .contentShape(Rectangle())
                         .onTapGesture { editor = TaskEditorTarget(task: task) }
+                        .contextMenu {
+                            Button("Bearbeiten") { editor = TaskEditorTarget(task: task) }
+                            Button("Löschen", role: .destructive) { deleting = task }
+                        }
                 }
 
                 if model.board.tasks(in: filter).isEmpty && !model.isLoading {
@@ -41,6 +46,12 @@ struct TasksView: View {
         .refreshable { await model.load() }
         .task { await model.load() }
         .addButton(identifier: "add-task") { editor = TaskEditorTarget(task: nil) }
+        .confirmDelete(
+            $deleting,
+            title: "Aufgabe löschen?",
+            name: { $0.title },
+            onDelete: { task in Task { _ = await model.delete(id: task.id) } }
+        )
         .sheet(item: $editor) { target in
             TaskFormSheet(model: model, target: target)
         }
