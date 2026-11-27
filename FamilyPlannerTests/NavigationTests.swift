@@ -22,4 +22,13 @@ final class NavigationTests: XCTestCase {
         XCTAssertEqual(model.moveDay(from: .monday, by: -1), .sunday)
         XCTAssertEqual(model.shownWeekOffset, 0)
     }
+
+    func testATapOnANotificationShowsThatDayOnce() {
+        let model = model()
+        // 2026-12-02 is a Wednesday in the week after the shown one.
+        model.focus(on: WeekBuilder.date(fromISO: "2026-12-02", calendar: WeekBuilder.calendar()) ?? Date())
+        XCTAssertEqual(model.shownWeekOffset, 1)
+        XCTAssertEqual(model.takeFocusedDay(), .wednesday)
+        XCTAssertNil(model.takeFocusedDay())
+    }
 }

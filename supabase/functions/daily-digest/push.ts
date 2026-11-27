@@ -1,5 +1,5 @@
 // Copy of supabase/functions/mail-intake/push.ts without the mail-specific message text. Edge Functions are deployed one by one from the dashboard, so
-// the file is duplicated instead of imported. Keep both copies in sync.
+// the file is duplicated instead of imported. Keep both copies in sync, except for the optional `day` of the message, which only the digest uses.
 
 // Push notifications through the Apple Push Notification service (APNs).
 //
@@ -12,6 +12,8 @@
 export interface PushMessage {
   title: string;
   body: string;
+  /** `yyyy-MM-dd`: the app opens the week view on this day when the notification is tapped. */
+  day?: string;
 }
 
 /** Sends one message to all tokens and returns the tokens that Apple no longer accepts. */
@@ -78,6 +80,7 @@ export function createApnsSender(
     const host = config.host ?? "https://api.push.apple.com";
     const body = JSON.stringify({
       aps: { alert: { title: message.title, body: message.body }, sound: "default" },
+      ...(message.day ? { day: message.day } : {}),
     });
     const invalid: string[] = [];
     for (const token of tokens) {

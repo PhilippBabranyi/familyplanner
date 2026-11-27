@@ -91,6 +91,7 @@ Deno.test("sends the morning digest once, however often the timer calls", async 
   assertEquals(second.sent, []);
   assertEquals(pushes.length, 1);
   assertEquals(pushes[0].tokens, ["t1", "t2"]);
+  assertEquals(pushes[0].message.day, "2026-12-01");
 });
 
 Deno.test("sends nothing outside the slots", async () => {
@@ -104,6 +105,8 @@ Deno.test("sends the evening digest at 19:00", async () => {
   const { deps, pushes } = setup({ now: "2026-12-01T18:02:00Z" });
   assertEquals((await (await call(deps)).json()).sent, ["evening"]);
   assertEquals(pushes.length, 1);
+  // The evening message is about tomorrow: tapping it opens that day.
+  assertEquals(pushes[0].message.day, "2026-12-02");
 });
 
 Deno.test("dead tokens are removed", async () => {
@@ -137,6 +140,7 @@ Deno.test("the pickup reminder goes only to the driver, once", async () => {
   assertEquals(pushes.length, 1);
   assertEquals(tokenUsers, ["u-sam"]);
   assertEquals(pushes[0].message.title, "🚗 Zeit zum Losfahren");
+  assertEquals(pushes[0].message.day, "2026-12-03");
 });
 
 Deno.test("no reminder before the lead time or when nobody is entered", async () => {
@@ -182,6 +186,7 @@ Deno.test("the nudge at leaving goes to the whole family, once", async () => {
   assertEquals(pushes.length, 1);
   assertEquals(tokenUsers, [undefined]);
   assertEquals(pushes[0].message.title, "🎒 Gleich geht's los");
+  assertEquals(pushes[0].message.day, "2026-12-03");
 });
 
 Deno.test("no nudge on a day without something to take along", async () => {

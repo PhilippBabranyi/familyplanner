@@ -137,6 +137,8 @@ final class WeekViewModel: ObservableObject {
     @Published private(set) var errorDetail: String?
     /// A short confirmation after a successful save ("Gespeichert").
     @Published private(set) var savedNotice: String?
+    /// A day the week view should select, set by a tap on a notification and taken over by the view.
+    @Published private(set) var focusedDay: Weekday?
     @Published private(set) var errorMessage: String?
 
     /// The week of today. Today's screen and the pickup logic always work on this week.
@@ -171,6 +173,19 @@ final class WeekViewModel: ObservableObject {
 
     func showWeek(containing date: Date) {
         shownWeekStart = WeekBuilder.weekStart(containing: date, calendar: calendar)
+    }
+
+    /// Shows the week of `date` and asks the week view to select that day.
+    func focus(on date: Date) {
+        showWeek(containing: date)
+        let number = calendar.component(.weekday, from: date)
+        focusedDay = Weekday(rawValue: (number + 5) % 7 + 1)
+    }
+
+    /// The requested day, once: the view calls this and the request is gone.
+    func takeFocusedDay() -> Weekday? {
+        defer { focusedDay = nil }
+        return focusedDay
     }
 
     func showCurrentWeek() {
