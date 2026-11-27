@@ -303,6 +303,8 @@ Deno.test("each child has a reminder of their own with their own lead time", () 
   // Kim 16:20 minus 45 = 15:35, Robin 15:30 minus 20 = 15:10.
   assertEquals(pickupReminders(two, thursday(15, 9)).length, 0);
   assertEquals(pickupReminders(two, thursday(15, 10)).map((r) => r.driverId), ["u-alex"]);
-  assertEquals(pickupReminders(two, thursday(15, 36)).map((r) => r.driverId), ["u-alex", "u-sam"]);
+  assertEquals(pickupReminders(two, thursday(15, 29)).map((r) => r.driverId), ["u-alex"]);
+  assertEquals(pickupReminders(two, thursday(15, 30)).length, 0);
+  assertEquals(pickupReminders(two, thursday(15, 36)).map((r) => r.driverId), ["u-sam"]);
   assertEquals(pickupSlot("c-robin"), "pickup:c-robin");
 });

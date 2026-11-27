@@ -51,7 +51,7 @@ select throws_ok(
 );
 select lives_ok(
   $$insert into public.digest_log (family_id, day, slot)
-    values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', '2026-12-03', 'pickup:00000000-0000-0000-0000-0000000000c1')$$,
+    values ('00000000-0000-0000-0000-0000000000f1', '2026-12-03', 'pickup:00000000-0000-0000-0000-0000000000c1')$$,
   'the pickup reminder is a slot of its own per child'
 );
 
