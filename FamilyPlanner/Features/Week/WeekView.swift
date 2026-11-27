@@ -6,13 +6,10 @@ struct WeekView: View {
     @State private var selectedDay: Weekday?
     @State private var editor: ItemEditorTarget?
     @State private var showsPickups = false
-    @State private var filter: ItemFilter = .all
 
     /// In the current week the selected day defaults to today, in any other week to Monday.
     private var day: Weekday { selectedDay ?? (model.isShowingCurrentWeek ? model.todayWeekday : .monday) }
     private var plan: WeekPlan { model.shownPlan }
-    /// With several children the button is about all of them.
-    private var pickupButtonLabel: String { model.children.count > 1 ? "Pickup" : model.pickupLabel }
 
     var body: some View {
         ScrollView {
@@ -29,16 +26,16 @@ struct WeekView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
                         Spacer(minLength: 8)
-                        Button("\(pickupButtonLabel) & Ferien") { showsPickups = true }
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Theme.text)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(Theme.surface, in: Capsule())
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("open-pickups")
+                        Button { showsPickups = true } label: {
+                            Image(systemName: "gearshape")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(Theme.text)
+                                .frame(width: 40, height: 40)
+                                .background(Theme.surface, in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Pickup und Ferien")
+                        .accessibilityIdentifier("open-pickups")
                     }
                 }
 
@@ -69,9 +66,7 @@ struct WeekView: View {
                         .background(Theme.sage, in: Capsule())
                 }
 
-                ItemFilterBar(selection: $filter, others: model.accounts.map(\.name).filter { $0 != model.memberName })
-
-                ForEach(plan.items(on: day).filter { filter.matches($0, viewer: model.memberName) }) { item in
+                ForEach(plan.items(on: day)) { item in
                     WeekItemRow(item: item)
                         .contentShape(Rectangle())
                         .onTapGesture { edit(item) }
@@ -183,6 +178,7 @@ struct WeekView: View {
         HStack(spacing: 6) {
             ForEach(Weekday.allCases) { weekday in
                 let isSelected = weekday == day
+                let isToday = model.calendar.isDate(model.shownDate(of: weekday), inSameDayAs: model.today)
                 Button {
                     selectedDay = weekday
                 } label: {
@@ -197,7 +193,8 @@ struct WeekView: View {
                     }
                     .foregroundStyle(isSelected ? Theme.surface : Theme.text)
                     .frame(maxWidth: .infinity, minHeight: 66)
-                    .background(isSelected ? Theme.accent : Theme.surface, in: Capsule())
+                    .background(isSelected ? Theme.accent : (isToday ? Theme.butter : Theme.surface), in: Capsule())
+                    .overlay { if isToday && isSelected { Capsule().stroke(Theme.butter, lineWidth: 3) } }
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(weekday.longName)
