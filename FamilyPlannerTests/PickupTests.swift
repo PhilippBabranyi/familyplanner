@@ -40,15 +40,17 @@ final class PickupTests: XCTestCase {
         XCTAssertNil(model.todayPickup)
     }
 
-    func testNextItemTodayIsTheFirstOneThatHasNotStarted() async throws {
+    func testAnItemHasStartedOnceItsTimeIsReached() async throws {
         // Thursday 2026-11-26 has the ballet at 15:30 in the demo week.
-        let thursday = try XCTUnwrap(WeekBuilder.date(fromISO: "2026-11-26", calendar: WeekBuilder.calendar()))
+        let calendar = WeekBuilder.calendar()
+        let thursday = try XCTUnwrap(WeekBuilder.date(fromISO: "2026-11-26", calendar: calendar))
         let model = WeekViewModel(source: DemoDataSource(), now: thursday)
         await model.load()
-        let morning = try XCTUnwrap(WeekBuilder.calendar().date(bySettingHour: 9, minute: 0, second: 0, of: thursday))
-        XCTAssertEqual(model.nextItemToday(at: morning)?.title, "Ballett")
-        let evening = try XCTUnwrap(WeekBuilder.calendar().date(bySettingHour: 21, minute: 0, second: 0, of: thursday))
-        XCTAssertNil(model.nextItemToday(at: evening))
+        let ballet = try XCTUnwrap(model.plan.items(on: .thursday).first { $0.title == "Ballett" })
+        let morning = try XCTUnwrap(calendar.date(bySettingHour: 9, minute: 0, second: 0, of: thursday))
+        let evening = try XCTUnwrap(calendar.date(bySettingHour: 21, minute: 0, second: 0, of: thursday))
+        XCTAssertFalse(model.hasStarted(ballet, at: morning))
+        XCTAssertTrue(model.hasStarted(ballet, at: evening))
     }
 
     func testOpenPickupsOfTodayAndTomorrowShowInTheBell() async throws {

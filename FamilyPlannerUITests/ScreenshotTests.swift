@@ -13,6 +13,7 @@ final class ScreenshotTests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.buttons["seed-week"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Zahnarzt anrufen"].waitForExistence(timeout: 5), "The start card shows today")
         capture("01-start")
 
         app.buttons["seed-week"].tap()
@@ -22,10 +23,6 @@ final class ScreenshotTests: XCTestCase {
         app.buttons["day-Do"].tap()
         XCTAssertTrue(app.staticTexts["16:20"].waitForExistence(timeout: 5), "Thursday pickup exception is shown")
         capture("03-week-thursday")
-
-        app.buttons["tab-today"].tap()
-        XCTAssertTrue(app.staticTexts["Zahnarzt anrufen"].waitForExistence(timeout: 5))
-        capture("04-today")
 
         app.buttons["tab-tasks"].tap()
         XCTAssertTrue(app.buttons["advance-gift"].waitForExistence(timeout: 5))
@@ -53,7 +50,7 @@ final class ScreenshotTests: XCTestCase {
         // The dandelion button leads back to the start screen from anywhere.
         XCTAssertTrue(app.buttons["tab-start"].waitForExistence(timeout: 5))
         app.buttons["tab-start"].tap()
-        XCTAssertTrue(app.buttons["seed-today"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["seed-week"].waitForExistence(timeout: 5))
     }
 
     private func capture(_ name: String) {

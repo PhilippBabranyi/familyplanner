@@ -107,8 +107,6 @@ struct RootView: View {
         switch route {
         case .start:
             StartView(model: week) { route = $0 }
-        case .today:
-            TodayView(model: week)
         case .week:
             WeekView(model: week)
         case .ask:
