@@ -97,7 +97,8 @@ select is(
   'School <school@example.test>', 'and the sender'
 );
 
--- Calls without a user (Edge Functions) keep what they send.
+-- Calls without a user (Edge Functions) keep what they send. The test connection is no longer signed in.
+select set_config('request.jwt.claims', '', true);
 insert into public.tasks (family_id, title, created_by)
 values ('00000000-0000-0000-0000-0000000000f1', 'From a function', '00000000-0000-0000-0000-0000000000a1');
 select is(
