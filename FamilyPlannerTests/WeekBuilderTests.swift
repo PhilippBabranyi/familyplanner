@@ -198,7 +198,7 @@ final class WeekBuilderTests: XCTestCase {
         )
         XCTAssertEqual(cancelled.override, .cancelled)
         // "No pickup" must be sent as an explicit null, otherwise an upsert keeps the old time.
-        let write = PickupOverrideWrite(familyId: UUID(), day: "2026-11-26", pickupTime: nil)
+        let write = PickupOverrideWrite(familyId: UUID(), personId: UUID(), day: "2026-11-26", pickupTime: nil)
         let data = try JSONEncoder().encode(write)
         let text = try XCTUnwrap(String(bytes: data, encoding: .utf8))
         XCTAssertTrue(text.contains(#""pickup_time":null"#))
