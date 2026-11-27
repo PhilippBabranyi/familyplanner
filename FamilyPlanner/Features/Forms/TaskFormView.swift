@@ -5,6 +5,8 @@ struct TaskFormView: View {
     @Environment(\.dismiss) private var dismiss
 
     let existing: TaskItem?
+    /// The mail behind this task: the stored one, or the suggestion that is being accepted.
+    private let source: MailSource?
     let members: [Member]
     let onSave: (TaskDraft) async -> Bool
     let onDelete: (String) async -> Bool
@@ -26,6 +28,7 @@ struct TaskFormView: View {
         onDelete: @escaping (String) async -> Bool
     ) {
         self.existing = existing
+        self.source = existing?.source ?? prefill?.source
         self.members = members
         self.onSave = onSave
         self.onDelete = onDelete
@@ -65,6 +68,9 @@ struct TaskFormView: View {
                         .keyboardType(.decimalPad)
                         .accessibilityIdentifier("task-cash")
                 }
+                if let source {
+                    MailSourceSection(source: source)
+                }
                 if let existing {
                     Section {
                         DestructiveRow(
@@ -101,7 +107,8 @@ struct TaskFormView: View {
             assigneeId: assigneeId,
             dueOn: hasDue ? FormDates.iso(due) : nil,
             cashCents: FormDates.cents(from: cash),
-            dueTime: hasDue && hasTime ? FormDates.time(from: dueTime).description : nil
+            dueTime: hasDue && hasTime ? FormDates.time(from: dueTime).description : nil,
+            source: existing == nil ? source : nil
         )
         Task {
             if await onSave(draft) { dismiss() }

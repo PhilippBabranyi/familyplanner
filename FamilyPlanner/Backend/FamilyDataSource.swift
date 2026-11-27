@@ -70,7 +70,7 @@ actor DemoDataSource: FamilyDataSource {
             board.tasks.append(TaskItem(
                 id: UUID().uuidString, title: draft.title, assignee: name, assigneeId: draft.assigneeId,
                 dueOn: draft.dueOn, dueTime: draft.dueOn == nil ? nil : draft.dueTime, due: due, status: .open,
-                cashCents: draft.cashCents
+                cashCents: draft.cashCents, source: draft.source
             ))
         }
     }
@@ -100,7 +100,8 @@ actor DemoDataSource: FamilyDataSource {
             id: draft.id ?? UUID().uuidString, title: draft.title,
             note: draft.note.isEmpty ? nil : draft.note, startsOn: draft.startsOn, time: draft.time,
             weekdays: draft.weekdays, repeatUntil: draft.repeatUntil, skipHolidays: draft.skipHolidays,
-            assigneeId: draft.assigneeId, assignee: name, cashCents: draft.cashCents
+            assigneeId: draft.assigneeId, assignee: name, cashCents: draft.cashCents,
+            source: draft.source ?? calendar.items.first { $0.id == draft.id }?.source
         )
         if let index = calendar.items.firstIndex(where: { $0.id == item.id }) {
             calendar.items[index] = item

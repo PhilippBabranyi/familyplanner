@@ -7,7 +7,7 @@ enum DataSourceError: Error {
 
 /// Reads and writes the family's data. Row-level security in the database decides what is allowed.
 actor SupabaseDataSource: FamilyDataSource {
-    private let client: SupabaseClient
+    let client: SupabaseClient
     private var cachedFamilyId: UUID?
 
     init(client: SupabaseClient) {
@@ -22,7 +22,12 @@ actor SupabaseDataSource: FamilyDataSource {
             .order("created_at")
             .execute().value
         let names = try await peopleNames()
-        return TaskBoard(tasks: rows.map { $0.makeItem(names: names) })
+        let sources = await loadSources(table: "tasks")
+        return TaskBoard(tasks: rows.map {
+            var item = $0.makeItem(names: names)
+            item.source = sources[item.id]
+            return item
+        })
     }
 
     func setTaskStatus(id: String, status: TaskStatus) async throws {
@@ -46,7 +51,7 @@ actor SupabaseDataSource: FamilyDataSource {
             let write = TaskWrite(
                 familyId: try await familyId(), title: draft.title,
                 assignee: columns.member, assigneePerson: columns.person,
-                dueOn: draft.dueOn, dueTime: draft.dueTime, cashCents: draft.cashCents
+                dueOn: draft.dueOn, dueTime: draft.dueTime, cashCents: draft.cashCents, source: draft.source
             )
             try await client.from("tasks").insert(write).execute()
         }
@@ -122,6 +127,7 @@ actor SupabaseDataSource: FamilyDataSource {
             .order("starts_on")
             .execute().value
         let names = try await peopleNames()
+        let sources = await loadSources(table: "calendar_items")
         var pickups: [Weekday: TimeOfDay] = [:]
         for row in pickupRows {
             if let day = Weekday(rawValue: row.weekday), let time = TimeOfDay(databaseValue: row.pickupTime) {
@@ -139,7 +145,11 @@ actor SupabaseDataSource: FamilyDataSource {
             .select("remind_minutes")
             .execute().value) ?? []
         return CalendarData(
-            items: rows.compactMap { $0.makeItem(names: names) },
+            items: rows.compactMap { row in
+                var item = row.makeItem(names: names)
+                item?.source = sources[row.id.uuidString]
+                return item
+            },
             pickups: pickups,
             holidays: holidayRows.map { $0.makeHoliday() },
             pickupDrivers: Dictionary(driverRows.map { ($0.day, $0.driverId) }, uniquingKeysWith: { _, last in last }),

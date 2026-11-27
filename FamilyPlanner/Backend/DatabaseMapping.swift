@@ -251,6 +251,7 @@ struct TaskWrite: Encodable {
     let dueOn: String?
     let dueTime: String?
     let cashCents: Int?
+    var source: MailSource?
 
     enum CodingKeys: String, CodingKey {
         case familyId = "family_id"
@@ -272,6 +273,7 @@ struct TaskWrite: Encodable {
         // A time without a date is not allowed by the database.
         try container.encode(dueOn == nil ? nil : dueTime, forKey: .dueTime)
         try container.encode(cashCents, forKey: .cashCents)
+        if familyId != nil, let source { try SourceColumns(source: source).encode(to: encoder) }
     }
 }
 
@@ -305,6 +307,7 @@ struct CalendarItemWrite: Encodable {
         try container.encode(columns.member, forKey: .assignee)
         try container.encode(columns.person, forKey: .assigneePerson)
         try container.encode(draft.cashCents, forKey: .cashCents)
+        if familyId != nil, let source = draft.source { try SourceColumns(source: source).encode(to: encoder) }
     }
 }
 

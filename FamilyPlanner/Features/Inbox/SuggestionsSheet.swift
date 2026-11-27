@@ -106,7 +106,8 @@ enum SuggestionDrafts {
         TaskDraft(
             id: nil, title: suggestion.title, assigneeId: nil, dueOn: suggestion.date,
             cashCents: suggestion.amountCentsInEuro,
-            dueTime: suggestion.date == nil ? nil : suggestion.time?.description
+            dueTime: suggestion.date == nil ? nil : suggestion.time?.description,
+            source: suggestion.source
         )
     }
 
@@ -115,7 +116,7 @@ enum SuggestionDrafts {
             id: nil, title: suggestion.title, note: "",
             startsOn: suggestion.date ?? FormDates.iso(Date()), time: suggestion.time ?? .at(9, 0),
             weekdays: [], repeatUntil: nil, skipHolidays: false, assigneeId: nil,
-            cashCents: suggestion.amountCentsInEuro
+            cashCents: suggestion.amountCentsInEuro, source: suggestion.source
         )
     }
 }

@@ -5,6 +5,8 @@ struct CalendarItemFormView: View {
     @Environment(\.dismiss) private var dismiss
 
     let existing: StoredCalendarItem?
+    /// The mail behind this item: the stored one, or the suggestion that is being accepted.
+    private let source: MailSource?
     let members: [Member]
     let onSave: (CalendarItemDraft) async -> Bool
     let onDelete: (String) async -> Bool
@@ -31,6 +33,7 @@ struct CalendarItemFormView: View {
         onDelete: @escaping (String) async -> Bool
     ) {
         self.existing = existing
+        self.source = existing?.source ?? prefill?.source
         self.members = members
         self.onSave = onSave
         self.onDelete = onDelete
@@ -71,6 +74,9 @@ struct CalendarItemFormView: View {
                 Section("Bargeld") {
                     TextField("Betrag in € (optional)", text: $cash)
                         .keyboardType(.decimalPad)
+                }
+                if let source {
+                    MailSourceSection(source: source)
                 }
                 if let existing {
                     Section {
@@ -144,7 +150,8 @@ struct CalendarItemFormView: View {
             repeatUntil: isSeries && hasEnd ? FormDates.iso(endDate) : nil,
             skipHolidays: isSeries && skipHolidays,
             assigneeId: assigneeId,
-            cashCents: FormDates.cents(from: cash)
+            cashCents: FormDates.cents(from: cash),
+            source: existing == nil ? source : nil
         )
         Task {
             if await onSave(draft) { dismiss() }
