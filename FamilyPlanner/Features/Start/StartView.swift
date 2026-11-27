@@ -15,18 +15,17 @@ struct StartView: View {
     }
 
     private let placements = [
-        Placement(route: .today, x: 0.71, y: 0.14, tilt: 14, delay: 0),
-        Placement(route: .week, x: 0.18, y: 0.17, tilt: -18, delay: 1.5),
-        Placement(route: .tasks, x: 0.85, y: 0.28, tilt: 26, delay: 3),
-        Placement(route: .ask, x: 0.11, y: 0.34, tilt: -30, delay: 4.5),
-        Placement(route: .more, x: 0.80, y: 0.55, tilt: 38, delay: 2)
+        Placement(route: .week, x: 0.18, y: 0.12, tilt: -18, delay: 1.5),
+        Placement(route: .tasks, x: 0.85, y: 0.20, tilt: 26, delay: 3),
+        Placement(route: .ask, x: 0.11, y: 0.29, tilt: -30, delay: 4.5),
+        Placement(route: .more, x: 0.82, y: 0.40, tilt: 38, delay: 2)
     ]
 
     var body: some View {
         GeometryReader { proxy in
             let width = proxy.size.width
             let height = proxy.size.height
-            let headCenter = CGPoint(x: width * 0.5, y: height * 0.355)
+            let headCenter = CGPoint(x: width * 0.5, y: height * 0.27)
 
             ZStack {
                 Circle()
@@ -73,15 +72,15 @@ struct StartView: View {
     }
 
     private var greetingCard: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("FAMILIENPLANER")
+        VStack(alignment: .leading, spacing: 10) {
+            Text(dateTitle)
                 .font(.system(size: 12, weight: .semibold))
                 .tracking(1.2)
                 .foregroundStyle(Theme.muted)
             Text(model.memberName.map { "Hallo \($0)" } ?? "Hallo")
                 .font(Theme.display(28))
                 .foregroundStyle(Theme.text)
-            todayGlance
+            todayList
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 24)
@@ -90,25 +89,52 @@ struct StartView: View {
         .shadow(color: Theme.shadow, radius: 12, x: 0, y: 6)
     }
 
-    /// The day in two lines: the pickup with the person, and what comes next.
-    private var todayGlance: some View {
-        VStack(alignment: .leading, spacing: 6) {
+    /// The day: the pickup with the person, the items, and the cash to take along.
+    private var todayList: some View {
+        let items = model.plan.items(on: model.todayWeekday)
+        let cash = model.plan.cashNeededCents(on: model.todayWeekday)
+        return VStack(alignment: .leading, spacing: 8) {
             if let pickup = model.todayPickup {
                 HStack(spacing: 8) {
                     Circle().fill(dotColor(for: pickup)).frame(width: 10, height: 10)
                     Text(pickupText(pickup))
                 }
+                .foregroundStyle(Theme.text)
             }
-            if let next = model.nextItemToday() {
-                Text("Als Nächstes: \(next.time) \(next.title)")
-            } else if model.todayPickup == nil {
-                Text("Heute steht nichts mehr an.")
+            ForEach(items.prefix(Self.maxItems)) { item in
+                HStack(spacing: 10) {
+                    Text(item.time.description)
+                        .frame(width: 44, alignment: .leading)
+                        .foregroundStyle(Theme.muted)
+                    Text(item.title).lineLimit(1)
+                }
+                .foregroundStyle(Theme.text)
+                .opacity(model.hasStarted(item) ? 0.5 : 1)
+            }
+            if items.count > Self.maxItems {
+                Text("… und \(items.count - Self.maxItems) weitere")
+                    .foregroundStyle(Theme.muted)
+            }
+            if cash > 0 {
+                Text("Bargeld: \(formattedEuros(cents: cash))")
+                    .foregroundStyle(Theme.muted)
+            }
+            if items.isEmpty && model.todayPickup == nil {
+                Text("Heute steht nichts an.")
+                    .foregroundStyle(Theme.muted)
             }
         }
         .font(.system(size: 15))
-        .foregroundStyle(Theme.muted)
-        .lineLimit(2)
-        .accessibilityIdentifier("start-glance")
+        .accessibilityIdentifier("start-today")
+    }
+
+    private static let maxItems = 4
+
+    private var dateTitle: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "de_DE")
+        formatter.dateFormat = "EEEE · d. MMMM"
+        return formatter.string(from: model.today).uppercased()
     }
 
     private func pickupText(_ pickup: TodayPickup) -> String {

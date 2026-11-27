@@ -1,7 +1,6 @@
 /// Top-level destinations of the app.
 enum Route: String, CaseIterable, Identifiable {
     case start
-    case today
     case week
     case ask
     case tasks
@@ -14,12 +13,11 @@ enum Route: String, CaseIterable, Identifiable {
     var tab: Route { self == .shopping ? .more : self }
 
     /// Destinations shown in the floating tab bar. The start screen (the dandelion) is always the first one.
-    static let tabs: [Route] = [.start, .today, .week, .ask, .tasks, .more]
+    static let tabs: [Route] = [.start, .week, .ask, .tasks, .more]
 
     var title: String {
         switch self {
         case .start: return "Start"
-        case .today: return "Heute"
         case .week: return "Woche"
         case .ask: return "Fragen"
         case .tasks: return "Aufgaben"
@@ -31,7 +29,6 @@ enum Route: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .start: return "leaf"
-        case .today: return "clock"
         case .week: return "calendar"
         case .ask: return "magnifyingglass"
         case .tasks: return "checkmark.square"
