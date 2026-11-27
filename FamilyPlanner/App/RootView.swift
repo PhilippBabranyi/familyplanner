@@ -97,9 +97,16 @@ struct RootView: View {
 
     @ViewBuilder
     private var content: some View {
+        screen.background(alignment: .bottomTrailing) {
+            if route != .start { DandelionWatermark() }
+        }
+    }
+
+    @ViewBuilder
+    private var screen: some View {
         switch route {
         case .start:
-            StartView(name: week.memberName) { route = $0 }
+            StartView(model: week) { route = $0 }
         case .today:
             TodayView(model: week)
         case .week:

@@ -2,8 +2,7 @@ import SwiftUI
 
 /// Start screen: a dandelion whose seeds lead into the app's functions.
 struct StartView: View {
-    /// Display name of the signed-in person; the greeting has no name until it is known.
-    let name: String?
+    @ObservedObject var model: WeekViewModel
     let open: (Route) -> Void
 
     private struct Placement {
@@ -79,17 +78,49 @@ struct StartView: View {
                 .font(.system(size: 12, weight: .semibold))
                 .tracking(1.2)
                 .foregroundStyle(Theme.muted)
-            Text(name.map { "Hallo \($0)" } ?? "Hallo")
+            Text(model.memberName.map { "Hallo \($0)" } ?? "Hallo")
                 .font(Theme.display(28))
                 .foregroundStyle(Theme.text)
-            Text("Jeder Samen trägt dich an einen Ort. Tippe einen an.")
-                .font(.system(size: 15))
-                .foregroundStyle(Theme.muted)
+            todayGlance
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 24)
         .padding(.vertical, 22)
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: 36, style: .continuous))
         .shadow(color: Theme.shadow, radius: 12, x: 0, y: 6)
+    }
+
+    /// The day in two lines: the pickup with the person, and what comes next.
+    private var todayGlance: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let pickup = model.todayPickup {
+                HStack(spacing: 8) {
+                    Circle().fill(dotColor(for: pickup)).frame(width: 10, height: 10)
+                    Text(pickupText(pickup))
+                }
+            }
+            if let next = model.nextItemToday() {
+                Text("Als Nächstes: \(next.time) \(next.title)")
+            } else if model.todayPickup == nil {
+                Text("Heute steht nichts mehr an.")
+            }
+        }
+        .font(.system(size: 15))
+        .foregroundStyle(Theme.muted)
+        .lineLimit(2)
+        .accessibilityIdentifier("start-glance")
+    }
+
+    private func pickupText(_ pickup: TodayPickup) -> String {
+        guard let driver = pickup.driver else { return "Abholung \(pickup.time): noch niemand eingetragen" }
+        return "Abholung \(pickup.time): \(driver) holt ab"
+    }
+
+    private func dotColor(for pickup: TodayPickup) -> Color {
+        switch pickup.mark {
+        case .open: Theme.pickupOpen
+        case .changed: Theme.pickupChanged
+        case .assigned: AssigneePalette.color(for: pickup.driver)
+        }
     }
 }

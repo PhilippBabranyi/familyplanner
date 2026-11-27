@@ -279,6 +279,13 @@ final class WeekViewModel: ObservableObject {
         return TodayPickup(time: time, driver: accountName(plan.driverByDay[todayWeekday]), mark: mark)
     }
 
+    /// The next item of today that has not started yet, nil if there is none.
+    func nextItemToday(at now: Date = Date()) -> WeekItem? {
+        let parts = calendar.dateComponents([.hour, .minute], from: now)
+        let current = TimeOfDay.at(parts.hour ?? 0, parts.minute ?? 0)
+        return plan.items(on: todayWeekday).first { $0.time >= current }
+    }
+
     private func accountName(_ id: String?) -> String? {
         guard let id else { return nil }
         return accounts.first { $0.id == id }?.name ?? "jemand"
