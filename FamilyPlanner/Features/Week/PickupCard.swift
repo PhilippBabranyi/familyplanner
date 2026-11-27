@@ -91,7 +91,7 @@ struct PickupCard: View {
                 editsTime = true
             }
             if time != nil {
-                Button("Abholung entfällt an diesem Tag") { apply(.cancelled) }
+                Button("Pickup entfällt an diesem Tag") { apply(.cancelled) }
             }
             if override != nil {
                 Button("Auf normale Zeit zurücksetzen") { apply(nil) }
@@ -110,7 +110,7 @@ struct PickupCard: View {
     private var timeSheet: some View {
         NavigationStack {
             Form {
-                DatePicker("Abholung", selection: $newTime, displayedComponents: .hourAndMinute)
+                DatePicker("Pickup", selection: $newTime, displayedComponents: .hourAndMinute)
                     .accessibilityIdentifier("override-time")
             }
             .softFormStyle()
