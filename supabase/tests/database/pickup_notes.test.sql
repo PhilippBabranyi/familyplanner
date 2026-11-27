@@ -1,6 +1,6 @@
--- Tests for the pickup label and the "take along" notes (pgTAP). All people and data are invented.
+-- Tests for the "take along" notes (pgTAP). All people and data are invented.
 begin;
-select plan(14);
+select plan(12);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-0000000000a1', 'alex@example.test'),
@@ -18,32 +18,26 @@ insert into public.family_members (family_id, user_id, display_name, role) value
   ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000a3', 'Helper', 'guest'),
   ('00000000-0000-0000-0000-0000000000f2', '00000000-0000-0000-0000-0000000000a4', 'Stranger', 'admin');
 
-select is(
-  (select pickup_label from public.families where id = '00000000-0000-0000-0000-0000000000f1'), 'Pickup',
-  'the pickup is called Pickup by default'
-);
-select throws_ok(
-  $$update public.families set pickup_label = '  ' where id = '00000000-0000-0000-0000-0000000000f1'$$,
-  '23514', null, 'the label cannot be empty'
-);
+insert into public.household_people (id, family_id, display_name, has_pickup) values
+  ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000f1', 'Kim', true);
 
-insert into public.pickup_notes (family_id, weekday, valid_from, note) values
-  ('00000000-0000-0000-0000-0000000000f1', 3, '2026-09-01', 'Book back'),
-  ('00000000-0000-0000-0000-0000000000f1', 3, '2027-01-11', '');
+insert into public.pickup_notes (family_id, person_id, weekday, valid_from, note) values
+  ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', 3, '2026-09-01', 'Book back'),
+  ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', 3, '2027-01-11', '');
 
 select throws_ok(
-  $$insert into public.pickup_notes (family_id, weekday, valid_from, note)
-    values ('00000000-0000-0000-0000-0000000000f1', 3, '2026-09-01', 'Again')$$,
+  $$insert into public.pickup_notes (family_id, person_id, weekday, valid_from, note)
+    values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', 3, '2026-09-01', 'Again')$$,
   '23505', null, 'one note per weekday and start day'
 );
 select throws_ok(
-  $$insert into public.pickup_notes (family_id, weekday, valid_from, note)
-    values ('00000000-0000-0000-0000-0000000000f1', 8, '2026-09-01', 'x')$$,
+  $$insert into public.pickup_notes (family_id, person_id, weekday, valid_from, note)
+    values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', 8, '2026-09-01', 'x')$$,
   '23514', null, 'the weekday must be 1 to 7'
 );
 select throws_ok(
-  format($$insert into public.pickup_notes (family_id, weekday, valid_from, note)
-    values ('00000000-0000-0000-0000-0000000000f1', 4, '2026-09-01', %L)$$, repeat('x', 201)),
+  format($$insert into public.pickup_notes (family_id, person_id, weekday, valid_from, note)
+    values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', 4, '2026-09-01', %L)$$, repeat('x', 201)),
   '23514', null, 'a note is at most 200 characters'
 );
 select is(
@@ -63,8 +57,8 @@ set local role authenticated;
 
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a2","role":"authenticated"}', true);
 select lives_ok(
-  $$insert into public.pickup_note_overrides (family_id, day, note)
-    values ('00000000-0000-0000-0000-0000000000f1', '2026-12-02', 'Swimming kit')$$,
+  $$insert into public.pickup_note_overrides (family_id, person_id, day, note)
+    values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', '2026-12-02', 'Swimming kit')$$,
   'family can set a note for one day'
 );
 
@@ -77,13 +71,13 @@ select is(
   'another family sees no notes'
 );
 select throws_ok(
-  $$insert into public.pickup_notes (family_id, weekday, valid_from, note)
-    values ('00000000-0000-0000-0000-0000000000f1', 5, '2026-12-01', 'Piano book')$$,
+  $$insert into public.pickup_notes (family_id, person_id, weekday, valid_from, note)
+    values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', 5, '2026-12-01', 'Piano book')$$,
   '42501', null, 'another family cannot enter notes'
 );
 select throws_ok(
-  $$insert into public.pickup_note_overrides (family_id, day, note)
-    values ('00000000-0000-0000-0000-0000000000f1', '2026-12-03', 'x')$$,
+  $$insert into public.pickup_note_overrides (family_id, person_id, day, note)
+    values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', '2026-12-03', 'x')$$,
   '42501', null, 'another family cannot enter a note for a day'
 );
 

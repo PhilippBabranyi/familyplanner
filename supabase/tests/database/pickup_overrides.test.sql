@@ -18,13 +18,16 @@ insert into public.family_members (family_id, user_id, display_name, role) value
   ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000a3', 'Helper', 'guest'),
   ('00000000-0000-0000-0000-0000000000f2', '00000000-0000-0000-0000-0000000000a4', 'Stranger', 'admin');
 
-insert into public.pickup_overrides (family_id, day, pickup_time) values
-  ('00000000-0000-0000-0000-0000000000f1', '2026-12-03', '15:20'),
-  ('00000000-0000-0000-0000-0000000000f1', '2026-12-04', null);
+insert into public.household_people (id, family_id, display_name, has_pickup) values
+  ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000f1', 'Kim', true);
+
+insert into public.pickup_overrides (family_id, person_id, day, pickup_time) values
+  ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', '2026-12-03', '15:20'),
+  ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', '2026-12-04', null);
 
 select throws_ok(
-  $$insert into public.pickup_overrides (family_id, day, pickup_time)
-    values ('00000000-0000-0000-0000-0000000000f1', '2026-12-03', '16:00')$$,
+  $$insert into public.pickup_overrides (family_id, person_id, day, pickup_time)
+    values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', '2026-12-03', '16:00')$$,
   '23505', null, 'one change per day'
 );
 select is(
@@ -39,8 +42,8 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a2","role":"authenticated"}', true);
 select is((select count(*) from public.pickup_overrides), 2::bigint, 'family sees the changes of its own family');
 select lives_ok(
-  $$insert into public.pickup_overrides (family_id, day, pickup_time)
-    values ('00000000-0000-0000-0000-0000000000f1', '2026-12-05', '14:00')$$,
+  $$insert into public.pickup_overrides (family_id, person_id, day, pickup_time)
+    values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', '2026-12-05', '14:00')$$,
   'family can enter a change'
 );
 
@@ -50,8 +53,8 @@ select is((select count(*) from public.pickup_overrides), 0::bigint, 'a guest se
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a4","role":"authenticated"}', true);
 select is((select count(*) from public.pickup_overrides), 0::bigint, 'another family sees no changes');
 select throws_ok(
-  $$insert into public.pickup_overrides (family_id, day, pickup_time)
-    values ('00000000-0000-0000-0000-0000000000f1', '2026-12-06', '14:00')$$,
+  $$insert into public.pickup_overrides (family_id, person_id, day, pickup_time)
+    values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', '2026-12-06', '14:00')$$,
   '42501', null, 'another family cannot enter a change'
 );
 select is(

@@ -26,14 +26,18 @@ insert into public.holidays (family_id, name, starts_on, ends_on) values
   ('00000000-0000-0000-0000-0000000000f1', 'Winter break', '2026-12-23', '2027-01-06'),
   ('00000000-0000-0000-0000-0000000000f2', 'Other family break', '2026-12-23', '2027-01-06');
 
-insert into public.pickup_times (family_id, weekday, pickup_time) values
-  ('00000000-0000-0000-0000-0000000000f1', 4, '16:20'),
-  ('00000000-0000-0000-0000-0000000000f2', 4, '15:00');
+insert into public.household_people (id, family_id, display_name, has_pickup) values
+  ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000f1', 'Kim', true),
+  ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-0000000000f2', 'Robin', true);
+
+insert into public.pickup_times (family_id, person_id, weekday, pickup_time) values
+  ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', 4, '16:20'),
+  ('00000000-0000-0000-0000-0000000000f2', '00000000-0000-0000-0000-0000000000c2', 4, '15:00');
 
 -- Constraints
 select throws_ok(
-  $$insert into public.pickup_times (family_id, weekday, pickup_time)
-    values ('00000000-0000-0000-0000-0000000000f1', 8, '15:20')$$,
+  $$insert into public.pickup_times (family_id, person_id, weekday, pickup_time)
+    values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', 8, '15:20')$$,
   '23514', null, 'weekday must be between 1 and 7'
 );
 select throws_ok(

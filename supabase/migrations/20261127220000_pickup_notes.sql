@@ -1,31 +1,30 @@
--- "Mitnehmen" notes for the school days, and a family-specific name for the pickup.
+-- "Mitnehmen" notes for the school days of a child.
 --
--- - families.pickup_label: how the family calls the pickup in the app and in pushes ("Pickup" by default).
---   It is set in the SQL editor, so that no name of a family member has to be part of the code.
 -- - pickup_notes: what has to be taken along on a weekday ("Buch zurückbringen"). A row is valid from its
 --   valid_from day until a later row for the same weekday starts: a new rhythm is just new rows with a new
 --   date, and the old ones stay as history. An empty note means "nothing to take along from that day on".
 -- - pickup_note_overrides: a note for a single day (empty = nothing that day).
--- - digest_log learns the slot 'leave' (the nudge when the family leaves the house), sent once per day.
-
-alter table public.families
-  add column pickup_label text not null default 'Pickup'
-    check (length(trim(pickup_label)) between 1 and 40);
+-- - the digest slot 'leave' (the nudge when the family leaves the house) was already allowed by the previous
+--   migration and is sent once per day.
 
 create table public.pickup_notes (
   family_id uuid not null references public.families (id) on delete cascade,
+  person_id uuid not null,
   -- ISO weekday: 1 = Monday ... 7 = Sunday.
   weekday smallint not null check (weekday between 1 and 7),
   valid_from date not null,
   note text not null default '' check (length(note) <= 200),
-  primary key (family_id, weekday, valid_from)
+  primary key (family_id, person_id, weekday, valid_from),
+  foreign key (family_id, person_id) references public.household_people (family_id, id) on delete cascade
 );
 
 create table public.pickup_note_overrides (
   family_id uuid not null references public.families (id) on delete cascade,
+  person_id uuid not null,
   day date not null,
   note text not null default '' check (length(note) <= 200),
-  primary key (family_id, day)
+  primary key (family_id, person_id, day),
+  foreign key (family_id, person_id) references public.household_people (family_id, id) on delete cascade
 );
 
 alter table public.pickup_notes enable row level security;
@@ -63,6 +62,3 @@ revoke all on public.pickup_notes, public.pickup_note_overrides from anon, authe
 grant select, insert, update, delete on public.pickup_notes, public.pickup_note_overrides to authenticated;
 grant select on public.pickup_notes, public.pickup_note_overrides to service_role;
 
-alter table public.digest_log drop constraint digest_log_slot_check;
-alter table public.digest_log
-  add constraint digest_log_slot_check check (slot in ('morning', 'evening', 'pickup', 'leave'));
