@@ -7,7 +7,7 @@ final class ItemFilterTests: XCTestCase {
     private let shared = WeekItem(id: "c", time: .at(10, 0), title: "Everyone")
 
     private func titles(_ filter: ItemFilter) -> [String] {
-        [mine, theirs, shared].filter { filter.matches($0, me: "Alex") }.map(\.title)
+        [mine, theirs, shared].filter { filter.matches($0, viewer: "Alex") }.map(\.title)
     }
 
     func testAllShowsEverything() {
@@ -27,7 +27,7 @@ final class ItemFilterTests: XCTestCase {
     }
 
     func testMineIsEmptyWhenTheNameIsUnknown() {
-        XCTAssertFalse(ItemFilter.mine.matches(mine, me: nil))
+        XCTAssertFalse(ItemFilter.mine.matches(mine, viewer: nil))
     }
 
     func testOnlyItemsOfOthersAreMarkedAsSomeoneElses() {

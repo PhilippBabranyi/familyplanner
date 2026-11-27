@@ -63,7 +63,7 @@ struct WeekView: View {
 
                 ItemFilterBar(selection: $filter, others: model.accounts.map(\.name).filter { $0 != model.memberName })
 
-                ForEach(plan.items(on: day).filter { filter.matches($0, me: model.memberName) }) { item in
+                ForEach(plan.items(on: day).filter { filter.matches($0, viewer: model.memberName) }) { item in
                     WeekItemRow(item: item)
                         .contentShape(Rectangle())
                         .onTapGesture { edit(item) }
