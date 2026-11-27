@@ -58,15 +58,16 @@ alter table public.pickup_overrides add primary key (family_id, person_id, day);
 alter table public.pickup_overrides add constraint pickup_overrides_person_fkey
   foreign key (family_id, person_id) references public.household_people (family_id, id) on delete cascade;
 
--- One reminder per child and day.
+-- One reminder per child and day. Old rows ('pickup') are converted while no constraint is in place,
+-- and the new constraint is added afterwards, otherwise existing rows would violate it.
 alter table public.digest_log drop constraint digest_log_slot_check;
-alter table public.digest_log
-  add constraint digest_log_slot_check check (
-    slot in ('morning', 'evening', 'leave')
-    or slot ~ '^pickup:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-  );
 update public.digest_log l
   set slot = 'pickup:' || p.id
   from public.household_people p
   where l.slot = 'pickup' and p.family_id = l.family_id and p.has_pickup;
 delete from public.digest_log where slot = 'pickup';
+alter table public.digest_log
+  add constraint digest_log_slot_check check (
+    slot in ('morning', 'evening', 'leave')
+    or slot ~ '^pickup:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+  );
