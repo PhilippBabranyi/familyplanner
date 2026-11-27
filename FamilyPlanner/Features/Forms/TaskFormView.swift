@@ -111,7 +111,10 @@ struct TaskFormView: View {
             source: existing == nil ? source : nil
         )
         Task {
-            if await onSave(draft) { dismiss() }
+            if await onSave(draft) {
+                Haptics.saved()
+                dismiss()
+            }
             isSaving = false
         }
     }

@@ -45,7 +45,13 @@ struct RootView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active, auth.state == .signedIn else { return }
-            Task { await inbox.load() }
+            // Coming back to the app: show what the family entered in the meantime.
+            Task {
+                await week.load()
+                await tasks.load()
+                await shopping.load()
+                await inbox.load()
+            }
             openSuggestionsIfRequested()
         }
         .onReceive(NotificationCenter.default.publisher(for: .pushTokenReceived)) { note in
