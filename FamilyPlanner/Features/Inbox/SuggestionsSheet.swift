@@ -19,7 +19,12 @@ struct SuggestionsSheet: View {
                     if let message = inbox.errorMessage {
                         ErrorBanner(message: message)
                     }
-                    if inbox.suggestions.isEmpty {
+                    ForEach(week.openPickups()) { pickup in
+                        OpenPickupCard(pickup: pickup, accounts: week.accounts) { member in
+                            Task { _ = await week.setPickupDriver(dayText: pickup.dayText, memberId: member.id) }
+                        }
+                    }
+                    if inbox.suggestions.isEmpty && week.openPickups().isEmpty {
                         Text("Nichts Neues. Die Mails sind alle erledigt. 🎉")
                             .font(.system(size: 16))
                             .foregroundStyle(Theme.muted)

@@ -12,12 +12,14 @@ import {
   berlinClock,
   buildDigest,
   type Clock,
+  cleanupDue,
   dueSlots,
   type FamilyData,
   type LogSlot,
   pickupReminder,
   planDay,
   type Slot,
+  suggestionCutoff,
   targetDate,
 } from "./digest.ts";
 import { type ApnsConfig, createApnsSender, type PushSender } from "./push.ts";
@@ -33,6 +35,8 @@ export interface Store {
   /** The push addresses of the family, or only those of one account. */
   loadDeviceTokens(familyId: string, userId?: string): Promise<string[]>;
   deleteDeviceTokens(tokens: string[]): Promise<void>;
+  /** Deletes mail suggestions created before `before` (an ISO time) and returns how many. */
+  deleteOldSuggestions(before: string): Promise<number>;
 }
 
 export interface Dependencies {
@@ -115,7 +119,15 @@ export async function handleRequest(req: Request, deps: Dependencies): Promise<R
         console.error("pickup reminder failed", error instanceof Error ? error.message : "unknown error");
       }
     }
-    return json({ date: clock.date, due: slots, sent });
+    let cleaned: number | undefined;
+    if (cleanupDue(clock)) {
+      try {
+        cleaned = await deps.store.deleteOldSuggestions(suggestionCutoff(deps.now()));
+      } catch (error) {
+        console.error("cleanup failed", error instanceof Error ? error.message : "unknown error");
+      }
+    }
+    return json({ date: clock.date, due: slots, sent, ...(cleaned === undefined ? {} : { cleaned }) });
   } catch (error) {
     console.error("daily-digest failed", error instanceof Error ? error.message : "unknown error");
     return json({ error: "server error" }, 500);
@@ -223,6 +235,11 @@ async function createStore(): Promise<Store> {
       const { data, error } = await query;
       fail(error);
       return (data ?? []).map((row) => row.token as string);
+    },
+    async deleteOldSuggestions(before) {
+      const { data, error } = await client.from("inbox_items").delete().lt("created_at", before).select("id");
+      fail(error);
+      return data?.length ?? 0;
     },
     async deleteDeviceTokens(tokens) {
       const { error } = await client.from("device_tokens").delete().in("token", tokens);

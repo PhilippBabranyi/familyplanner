@@ -13,14 +13,20 @@ Times are Berlin time. They are fixed in `supabase/functions/daily-digest/digest
 ## Pickup: who and when to leave
 
 - On the week screen the card "Abholung" has a menu "Wer holt ab?". Nobody is entered by default (table
-  `pickup_drivers`, one row per day). If a day with a pickup has nobody, the morning and evening push say so
-  ("Wer holt heute ab?").
+  `pickup_drivers`, one row per day). If a day with a pickup has nobody, the first line of the morning and evening
+  push says so ("🚗 Abholung 15:20: noch niemand eingetragen").
 - The person who is entered gets the push "Zeit zum Losfahren" `remind_minutes` before the pickup (30 by default,
   set in "Abholung & Ferien"). Only that person's phones get it. It is sent once per day (slot `pickup`).
 - A single day can differ from the weekly time (table `pickup_overrides`): the card has "Nur dieser Tag" with a
   changed time, "Abholung entfällt" and "Auf normale Zeit zurücksetzen". The digest and the reminder use it.
 - Setup: apply `supabase/migrations/20261127160000_pickup_driver.sql` and
   `supabase/migrations/20261127180000_pickup_overrides.sql`, then deploy the new version of the function.
+
+## Bell and cleanup
+
+- The bell also lists today's (if not over) and tomorrow's pickup when nobody is entered, with a button per person.
+- Every night between 3:00 and 4:00 the function deletes mail suggestions (`inbox_items`) older than 30 days,
+  whether they were decided or not. The response then has a field `cleaned` with the number. No setup needed.
 
 ## How it works
 
