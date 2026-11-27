@@ -78,6 +78,14 @@ struct WeekView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollIndicators(.hidden)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 40).onEnded { drag in
+                // Only a clearly horizontal swipe changes the day; vertical scrolling is left alone.
+                guard abs(drag.translation.width) > 2 * abs(drag.translation.height) else { return }
+                selectedDay = model.moveDay(from: day, by: drag.translation.width < 0 ? 1 : -1)
+            }
+        )
+        .sensoryFeedback(.success, trigger: model.savedNotice) { _, notice in notice != nil }
         .refreshable { await model.load() }
         .task { await model.load() }
         .accessibilityIdentifier("screen-week")

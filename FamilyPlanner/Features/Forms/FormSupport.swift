@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Conversions between the pickers' `Date` values and the plain strings and times of the models.
 enum FormDates {
@@ -68,6 +69,17 @@ extension View {
         scrollContentBackground(.hidden)
             .background(Theme.background)
             .environment(\.locale, Locale(identifier: "de_DE"))
+            .scrollDismissesKeyboard(.interactively)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Fertig") {
+                        UIApplication.shared.sendAction(
+                            #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
+                        )
+                    }
+                }
+            }
     }
 }
 
@@ -103,5 +115,13 @@ struct DestructiveRow: View {
                 Button(title, role: .destructive) { Task { await action() } }
                 Button("Abbrechen", role: .cancel) {}
             }
+    }
+}
+
+/// A short vibration that confirms a save.
+enum Haptics {
+    @MainActor
+    static func saved() {
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 }
