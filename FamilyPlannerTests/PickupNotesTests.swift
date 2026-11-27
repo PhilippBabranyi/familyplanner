@@ -26,8 +26,12 @@ final class PickupNotesTests: XCTestCase {
         XCTAssertNil(bring("2027-01-14", .thursday), "the empty note ends the old one")
     }
 
-    func testANoteForOneDayWinsAndAnEmptyOneClears() {
-        XCTAssertEqual(bring("2026-12-02", .wednesday, overrides: ["2026-12-02": "Swimming kit"]), "Swimming kit")
+    func testANoteForOneDayIsAddedToTheRhythmAndAnEmptyOneClears() {
+        XCTAssertEqual(
+            bring("2026-12-02", .wednesday, overrides: ["2026-12-02": "Swimming kit"]),
+            "Book back, PE kit & Swimming kit"
+        )
+        XCTAssertEqual(bring("2026-12-03", .thursday, overrides: ["2026-12-03": "Jumper"]), "Ballet bag & Jumper")
         XCTAssertNil(bring("2026-12-02", .wednesday, overrides: ["2026-12-02": " "]))
     }
 

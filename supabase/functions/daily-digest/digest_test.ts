@@ -247,8 +247,9 @@ Deno.test("the rhythm decides what to take along, and a new rhythm replaces the 
   assertEquals(bringNote(kim, "2026-08-27", false), null);
 });
 
-Deno.test("a note for a single day wins over the rhythm, an empty one clears it", () => {
-  assertEquals(bringNote(kim, "2026-12-17", false), "Swimming kit");
+Deno.test("a note for a single day is added to the rhythm, an empty one clears it", () => {
+  // 2026-12-17 is a Thursday: the rhythm "Ballet bag" plus the note of the day.
+  assertEquals(bringNote(kim, "2026-12-17", false), "Ballet bag & Swimming kit");
   assertEquals(bringNote(kim, "2026-12-02", false), null);
 });
 

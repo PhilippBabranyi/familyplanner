@@ -9,7 +9,8 @@ struct PickupNote: Equatable {
 }
 
 enum PickupNotes {
-    /// The note of a day: the note for that single day if there is one, otherwise the rhythm. Nothing in holidays.
+    /// The note of a day: the rhythm, plus the note for that single day ("Piano Book & Christmas Jumper").
+    /// A single-day note that is empty means nothing is taken along that day. Nothing in holidays.
     static func bring(
         on dayText: String,
         weekday: Weekday,
@@ -18,8 +19,10 @@ enum PickupNotes {
         inHoliday: Bool
     ) -> String? {
         if inHoliday { return nil }
-        if let single = overrides[dayText] { return clean(single) }
-        return clean(rhythm(on: dayText, weekday: weekday, notes: notes))
+        let usual = clean(rhythm(on: dayText, weekday: weekday, notes: notes))
+        guard let single = overrides[dayText] else { return usual }
+        guard let extra = clean(single) else { return nil }
+        return [usual, extra].compactMap { $0 }.joined(separator: " & ")
     }
 
     /// The note of the rhythm that counts on a day, ignoring single-day notes.

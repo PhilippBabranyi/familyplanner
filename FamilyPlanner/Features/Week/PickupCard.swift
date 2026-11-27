@@ -107,9 +107,15 @@ struct PickupCard: View {
             if override != nil {
                 Button("Auf normale Zeit zurücksetzen") { apply(nil) }
             }
-            Button("Mitnehmen nur an diesem Tag ändern") {
-                newBring = plan.bringByDay[day] ?? ""
+            Button("Zusätzlich mitnehmen (nur dieser Tag)") {
+                let dayText = FormDates.iso(model.shownDate(of: day))
+                newBring = model.calendarData(for: child.id).pickupNoteOverrides[dayText] ?? ""
                 editsBring = true
+            }
+            if plan.bringByDay[day] != nil {
+                Button("Heute nichts mitnehmen") {
+                    Task { _ = await model.setBringNote(day: day, note: "", child: child.id) }
+                }
             }
             if plan.bringChangedDays.contains(day) {
                 Button("Mitnehmen wie üblich") {
@@ -159,7 +165,7 @@ struct PickupCard: View {
                     TextField("Was mitnehmen?", text: $newBring)
                         .accessibilityIdentifier("bring-text")
                 } footer: {
-                    Text("Gilt nur an diesem Tag. Leer lassen heißt: nichts mitnehmen.")
+                    Text("Wird nur an diesem Tag zum üblichen Hinweis ergänzt. Leer lassen entfernt die Ergänzung.")
                 }
             }
             .softFormStyle()
@@ -173,7 +179,8 @@ struct PickupCard: View {
                     Button("Sichern") {
                         editsBring = false
                         let text = newBring.trimmingCharacters(in: .whitespacesAndNewlines)
-                        Task { _ = await model.setBringNote(day: day, note: text, child: child.id) }
+                        let note: String? = text.isEmpty ? nil : text
+                        Task { _ = await model.setBringNote(day: day, note: note, child: child.id) }
                     }
                     .accessibilityIdentifier("bring-save")
                 }
