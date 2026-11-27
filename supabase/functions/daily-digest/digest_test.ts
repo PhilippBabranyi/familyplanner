@@ -107,7 +107,7 @@ Deno.test("a series ends after its last day", () => {
 Deno.test("the morning message lists the facts of the day", () => {
   const { title, body } = buildDigest("morning", planDay(data, "2026-12-03"), () => 0);
   assertStringIncludes(title, "Guten Morgen");
-  assertStringIncludes(body, "Abholung 16:20 (Sam)");
+  assertStringIncludes(body, "Pickup 16:20 (Sam)");
   assertStringIncludes(body, "09:30 Zahnarzt");
   assertStringIncludes(body, "16:00 Ballet (Kim)");
   assertStringIncludes(body, "Aufgaben: Kostümtag 08:15 (Kim)");
@@ -155,7 +155,7 @@ Deno.test("an open pickup is the first line, the title stays the briefing title"
   assertEquals(monday.pickupDriver, null);
   const morning = buildDigest("morning", monday, () => 0);
   assertEquals(morning.title, "☀️ Guten Morgen! Das steht heute an");
-  assertEquals(morning.body.split("\n")[0], "🚗 Abholung 15:20: noch niemand eingetragen");
+  assertEquals(morning.body.split("\n")[0], "🚗 Pickup 15:20: noch niemand eingetragen");
   assertEquals(buildDigest("evening", monday, () => 0).title, "🌙 Morgen auf dem Plan");
 });
 

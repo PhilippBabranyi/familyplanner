@@ -144,8 +144,8 @@ struct StartView: View {
     }
 
     private func pickupText(_ pickup: TodayPickup) -> String {
-        guard let driver = pickup.driver else { return "Abholung \(pickup.time): noch niemand eingetragen" }
-        return "Abholung \(pickup.time): \(driver) holt ab"
+        guard let driver = pickup.driver else { return "Pickup \(pickup.time): noch niemand eingetragen" }
+        return "Pickup \(pickup.time): \(driver) holt ab"
     }
 
     private func dotColor(for pickup: TodayPickup) -> Color {

@@ -53,7 +53,7 @@ struct PickupSheet: View {
                 holidaySection
             }
             .softFormStyle()
-            .navigationTitle("Abholung & Ferien")
+            .navigationTitle("Pickup & Ferien")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -103,7 +103,7 @@ struct PickupSheet: View {
         } header: {
             Text("Ferien")
         } footer: {
-            Text("In den Ferien gibt es keine Abholung, und Serien mit „Nicht in den Ferien“ pausieren.")
+            Text("In den Ferien gibt es kein Pickup, und Serien mit „Nicht in den Ferien“ pausieren.")
         }
     }
 

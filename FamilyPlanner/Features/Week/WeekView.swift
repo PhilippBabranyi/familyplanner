@@ -27,7 +27,7 @@ struct WeekView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
                         Spacer(minLength: 8)
-                        Button("Abholung & Ferien") { showsPickups = true }
+                        Button("Pickup & Ferien") { showsPickups = true }
                             .lineLimit(1)
                             .fixedSize(horizontal: true, vertical: false)
                             .font(.system(size: 13, weight: .semibold))
@@ -53,7 +53,7 @@ struct WeekView: View {
                 }
 
                 if let holiday = plan.holidays[day] {
-                    Text("Ferien: \(holiday) · keine Abholung")
+                    Text("Ferien: \(holiday) · kein Pickup")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Theme.text)
                         .padding(.horizontal, 14)

@@ -212,7 +212,10 @@ final class WeekViewModel: ObservableObject {
     func load() async {
         // The name is fetched first and on its own, so that the greeting does not depend on the calendar.
         if let name = try? await source.currentMemberName() { memberName = name }
-        if let members = try? await source.loadMembers() { accounts = members.filter { $0.personId == nil } }
+        if let members = try? await source.loadMembers() {
+            accounts = members.filter { $0.personId == nil }
+            AssigneePalette.setRoster(members)
+        }
         do {
             data = try await source.loadCalendar()
             plan = WeekBuilder.plan(data: data, weekStart: weekStart, calendar: calendar)
@@ -250,7 +253,7 @@ final class WeekViewModel: ObservableObject {
 
     /// Enters who picks up on any day (`yyyy-MM-dd`), or nobody (nil).
     func setPickupDriver(dayText: String, memberId: String?) async -> Bool {
-        await change("Die Abholung konnte nicht gespeichert werden.") {
+        await change("Der Pickup konnte nicht gespeichert werden.") {
             try await $0.setPickupDriver(day: dayText, memberId: memberId)
         }
     }

@@ -70,7 +70,7 @@ final class ViewModelTests: XCTestCase {
         await model.load()
         let saved = await model.setPickupDriver(day: .monday, memberId: "Alex")
         XCTAssertFalse(saved)
-        XCTAssertEqual(model.errorMessage, "Die Abholung konnte nicht gespeichert werden.")
+        XCTAssertEqual(model.errorMessage, "Der Pickup konnte nicht gespeichert werden.")
     }
 
     func testTasksLoadFromSource() async {
@@ -226,6 +226,16 @@ final class DatabaseMappingTests: XCTestCase {
     func testAssigneeColourIsStableAndUnassignedHasOwnColour() {
         XCTAssertEqual(AssigneePalette.index(for: "Alex"), AssigneePalette.index(for: "Alex"))
         XCTAssertLessThan(AssigneePalette.index(for: "Sam"), AssigneePalette.colors.count)
+    }
+
+    func testEveryoneOfTheFamilyGetsADifferentColour() {
+        let members = ["Alex", "Sam", "Kim", "Helper"].enumerated().map {
+            Member(id: "0000000\($0.offset)", name: $0.element)
+        }
+        AssigneePalette.setRoster(members)
+        defer { AssigneePalette.roster = [] }
+        let indices = members.map { AssigneePalette.index(for: $0.name) }
+        XCTAssertEqual(Set(indices).count, members.count)
     }
 }
 

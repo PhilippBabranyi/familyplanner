@@ -10,7 +10,7 @@ struct OpenPickupCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Circle().fill(Theme.pickupOpen).frame(width: 10, height: 10)
-                Text("Abholung")
+                Text("Pickup")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Theme.muted)
                 Spacer()

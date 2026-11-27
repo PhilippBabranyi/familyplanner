@@ -205,8 +205,8 @@ export function buildDigest(
   if (plan.pickup) {
     lines.push(
       plan.pickupDriver
-        ? `Abholung ${plan.pickup} (${plan.pickupDriver})`
-        : `🚗 Abholung ${plan.pickup}: noch niemand eingetragen`,
+        ? `Pickup ${plan.pickup} (${plan.pickupDriver})`
+        : `🚗 Pickup ${plan.pickup}: noch niemand eingetragen`,
     );
   }
   for (const item of plan.items.slice(0, MAX_ITEM_LINES)) {
@@ -255,6 +255,6 @@ export function pickupReminder(data: FamilyData, clock: Clock): PickupReminder |
   if (clock.minutes < pickupAt - lead || clock.minutes >= pickupAt) return null;
   return {
     driverId: driver.id,
-    message: { title: "🚗 Zeit zum Losfahren", body: `Abholung um ${plan.pickup}. Du holst heute ab.` },
+    message: { title: "🚗 Zeit zum Losfahren", body: `Pickup um ${plan.pickup}. Du holst heute ab.` },
   };
 }
