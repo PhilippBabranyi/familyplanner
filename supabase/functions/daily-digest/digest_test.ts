@@ -249,7 +249,7 @@ Deno.test("nothing is taken along in the holidays", () => {
 
 Deno.test("the morning message and the evening message carry the note of their day", () => {
   assertStringIncludes(buildDigest("morning", planDay(data, "2026-12-03"), () => 0).body, "🎒 Mitnehmen: Ballet bag");
-  assertStringIncludes(buildDigest("evening", planDay(data, "2026-12-02"), () => 0).body, "🎒 Mitnehmen: Ballet bag");
+  assertStringIncludes(buildDigest("evening", planDay(data, "2026-12-03"), () => 0).body, "🎒 Mitnehmen: Ballet bag");
 });
 
 Deno.test("the label of the family is used for the pickup", () => {

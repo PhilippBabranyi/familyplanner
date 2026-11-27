@@ -134,44 +134,17 @@ actor SupabaseDataSource: FamilyDataSource {
                 pickups[day] = time
             }
         }
-        // The driver and the reminder are optional extras: if they cannot be read, the week still loads.
-        let driverRows: [PickupDriverRow] = (try? await client.from("pickup_drivers")
-            .select("day,driver")
-            .execute().value) ?? []
-        let overrideRows: [PickupOverrideRow] = (try? await client.from("pickup_overrides")
-            .select("day,pickup_time")
-            .execute().value) ?? []
-        let reminderRows: [PickupReminderRow] = (try? await client.from("pickup_times")
-            .select("remind_minutes")
-            .execute().value) ?? []
-        // The notes and the label are extras that need their migration: without it they are simply empty.
-        let noteRows: [PickupNoteRow] = (try? await client.from("pickup_notes")
-            .select("weekday,valid_from,note")
-            .execute().value) ?? []
-        let noteDayRows: [PickupNoteOverrideRow] = (try? await client.from("pickup_note_overrides")
-            .select("day,note")
-            .execute().value) ?? []
-        let labelRows: [FamilyLabelRow] = (try? await client.from("families")
-            .select("pickup_label")
-            .execute().value) ?? []
-        return CalendarData(
+        var data = CalendarData(
             items: rows.compactMap { row in
                 var item = row.makeItem(names: names)
                 item?.source = sources[row.id.uuidString]
                 return item
             },
             pickups: pickups,
-            holidays: holidayRows.map { $0.makeHoliday() },
-            pickupDrivers: Dictionary(driverRows.map { ($0.day, $0.driverId) }, uniquingKeysWith: { _, last in last }),
-            pickupOverrides: Dictionary(
-                overrideRows.map { ($0.day, $0.override) },
-                uniquingKeysWith: { _, last in last }
-            ),
-            remindMinutes: reminderRows.first?.remindMinutes ?? 30,
-            pickupNotes: noteRows.compactMap(\.model),
-            pickupNoteOverrides: Dictionary(noteDayRows.map { ($0.day, $0.note) }, uniquingKeysWith: { _, last in last }),
-            pickupLabel: labelRows.first?.pickupLabel ?? "Pickup"
+            holidays: holidayRows.map { $0.makeHoliday() }
         )
+        await loadPickupExtras(into: &data)
+        return data
     }
 
     func saveCalendarItem(_ draft: CalendarItemDraft) async throws {
