@@ -17,7 +17,6 @@ struct StartView: View {
     private let placements = [
         Placement(route: .week, x: 0.18, y: 0.12, tilt: -18, delay: 1.5),
         Placement(route: .tasks, x: 0.85, y: 0.20, tilt: 26, delay: 3),
-        Placement(route: .ask, x: 0.11, y: 0.29, tilt: -30, delay: 4.5),
         Placement(route: .more, x: 0.82, y: 0.40, tilt: 38, delay: 2)
     ]
 
@@ -102,13 +101,20 @@ struct StartView: View {
                 .foregroundStyle(Theme.text)
             }
             ForEach(items.prefix(Self.maxItems)) { item in
+                let someoneElse = item.isForSomeoneElse(than: model.memberName)
                 HStack(spacing: 10) {
                     Text(item.time.description)
                         .frame(width: 44, alignment: .leading)
                         .foregroundStyle(Theme.muted)
                     Text(item.title).lineLimit(1)
+                        .fontWeight(someoneElse ? .regular : .semibold)
+                    if someoneElse, let name = item.assignee {
+                        Text(String(name.prefix(1)).uppercased())
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Theme.muted)
+                    }
                 }
-                .foregroundStyle(Theme.text)
+                .foregroundStyle(someoneElse ? Theme.muted : Theme.text)
                 .opacity(model.hasStarted(item) ? 0.5 : 1)
             }
             if items.count > Self.maxItems {

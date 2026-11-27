@@ -9,6 +9,7 @@ struct RootView: View {
     @StateObject private var inbox: InboxViewModel
     @State private var route: Route = .start
     @State private var showSuggestions = false
+    @State private var showAsk = false
     @Environment(\.scenePhase) private var scenePhase
 
     init(auth: AuthModel, dataSource: FamilyDataSource, now: Date = Date()) {
@@ -57,6 +58,16 @@ struct RootView: View {
         .sheet(isPresented: $showSuggestions) {
             SuggestionsSheet(inbox: inbox, tasks: tasks, week: week)
         }
+        .sheet(isPresented: $showAsk) {
+            NavigationStack {
+                PlaceholderView(title: "Frag die Familie", message: "Hier entsteht das Familiengedächtnis.")
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Fertig") { showAsk = false }
+                        }
+                    }
+            }
+        }
     }
 
     @ViewBuilder
@@ -67,12 +78,19 @@ struct RootView: View {
             }
             .overlay(alignment: .topTrailing) {
                 // The start screen has no top bar, but the bell must be reachable from there too.
-                if route == .start { bell.padding(.horizontal, 20).padding(.top, 4) }
+                if route == .start { corner.padding(.horizontal, 20).padding(.top, 4) }
             }
         // The menu stays reachable from the start screen too (no tab is highlighted there).
         FloatingTabBar(selection: $route)
             .padding(.horizontal, 20)
             .padding(.bottom, 8)
+    }
+
+    private var corner: some View {
+        HStack(spacing: 10) {
+            SearchButton { showAsk = true }
+            bell
+        }
     }
 
     private var bell: some View {
@@ -89,7 +107,7 @@ struct RootView: View {
     private var topBar: some View {
         HStack {
             Spacer()
-            bell
+            corner
         }
         .padding(.horizontal, 20)
         .padding(.top, 4)
@@ -109,8 +127,6 @@ struct RootView: View {
             StartView(model: week) { route = $0 }
         case .week:
             WeekView(model: week)
-        case .ask:
-            PlaceholderView(title: "Frag die Familie", message: "Hier entsteht das Familiengedächtnis.")
         case .tasks:
             TasksView(model: tasks)
         case .shopping:
