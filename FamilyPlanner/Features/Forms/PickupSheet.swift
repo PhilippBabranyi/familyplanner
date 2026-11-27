@@ -12,22 +12,41 @@ struct PickupSheet: View {
     @State private var holidayEnd = Date()
     @State private var remindMinutes: Int
     @State private var isSaving = false
+    @State private var rhythmStart = Date()
+    @State private var bringTexts: [Weekday: String]
+    /// The child whose pickup is edited. Several children each have their own times and notes.
+    @State private var childId: String?
 
     init(model: WeekViewModel) {
         self.model = model
-        let pickups = model.data.pickups
+        let first = model.children.first?.id
+        _childId = State(initialValue: first)
+        let pickups = model.calendarData(for: first).pickups
         _enabled = State(initialValue: Set(pickups.keys))
         var initial: [Weekday: Date] = [:]
         for day in Weekday.allCases {
             initial[day] = FormDates.date(from: pickups[day] ?? .at(15, 20))
         }
         _times = State(initialValue: initial)
-        _remindMinutes = State(initialValue: model.data.remindMinutes)
+        _remindMinutes = State(initialValue: model.calendarData(for: first).remindMinutes)
+        _bringTexts = State(initialValue: model.rhythmTexts(on: Date(), child: first))
     }
 
     var body: some View {
         NavigationStack {
             Form {
+                if model.children.count > 1 {
+                    Section {
+                        Picker("Kind", selection: $childId) {
+                            ForEach(model.children) { child in
+                                Text(child.name).tag(Optional(child.id))
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .accessibilityIdentifier("pickup-child")
+                        .onChange(of: childId) { _, _ in reload() }
+                    }
+                }
                 Section("Abholzeiten") {
                     ForEach(Weekday.allCases) { day in
                         HStack {
@@ -50,17 +69,18 @@ struct PickupSheet: View {
                 } footer: {
                     Text("Die Person, die an dem Tag abholt, bekommt dann die Nachricht „Zeit zum Losfahren“.")
                 }
+                bringSection
                 holidaySection
             }
             .softFormStyle()
-            .navigationTitle("Pickup & Ferien")
+            .navigationTitle("\(model.children.count > 1 ? "Pickup" : model.pickupLabel) & Ferien")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Schließen") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Zeiten sichern", action: save)
+                    Button("Sichern", action: save)
                         .disabled(isSaving)
                         .accessibilityIdentifier("pickup-save")
                 }
@@ -71,6 +91,31 @@ struct PickupSheet: View {
     /// The usual lead times, plus the stored one if it is something else.
     private var reminderChoices: [Int] {
         Array(Set([10, 15, 20, 30, 45, 60, 90, remindMinutes])).sorted()
+    }
+
+    /// What to take along on which weekday. Changing it starts a new rhythm from a date; earlier days keep theirs.
+    private var bringSection: some View {
+        Section {
+            DatePicker("Gilt ab", selection: $rhythmStart, displayedComponents: .date)
+                .accessibilityIdentifier("bring-from")
+                .onChange(of: rhythmStart) { _, date in bringTexts = model.rhythmTexts(on: date, child: childId) }
+            ForEach(Weekday.allCases) { day in
+                HStack {
+                    Text(day.shortName).frame(width: 36, alignment: .leading).foregroundStyle(Theme.muted)
+                    TextField("nichts", text: bringBinding(for: day))
+                        .accessibilityIdentifier("bring-\(day.shortName)")
+                }
+            }
+        } header: {
+            Text("Mitnehmen")
+        } footer: {
+            Text("Zum Beispiel „Buch zurückbringen“. Am Morgen um 7:30 kommt dazu eine Erinnerung. "
+                + "Ändert sich der Rhythmus, wähle das Datum, ab dem es gilt: frühere Tage bleiben, wie sie waren.")
+        }
+    }
+
+    private func bringBinding(for day: Weekday) -> Binding<String> {
+        Binding(get: { bringTexts[day] ?? "" }, set: { bringTexts[day] = $0 })
     }
 
     private var holidaySection: some View {
@@ -123,6 +168,19 @@ struct PickupSheet: View {
         )
     }
 
+    /// Shows the times, the reminder and the notes of the chosen child.
+    private func reload() {
+        let data = model.calendarData(for: childId)
+        enabled = Set(data.pickups.keys)
+        var loaded: [Weekday: Date] = [:]
+        for day in Weekday.allCases {
+            loaded[day] = FormDates.date(from: data.pickups[day] ?? .at(15, 20))
+        }
+        times = loaded
+        remindMinutes = data.remindMinutes
+        bringTexts = model.rhythmTexts(on: rhythmStart, child: childId)
+    }
+
     private func save() {
         isSaving = true
         var result: [Weekday: TimeOfDay] = [:]
@@ -130,7 +188,9 @@ struct PickupSheet: View {
             result[day] = FormDates.time(from: times[day] ?? Date())
         }
         Task {
-            if await model.savePickups(result, remindMinutes: remindMinutes) { dismiss() }
+            let timesSaved = await model.savePickups(result, remindMinutes: remindMinutes, child: childId)
+            let notesSaved = await model.saveRhythm(from: rhythmStart, texts: bringTexts, child: childId)
+            if timesSaved && notesSaved { dismiss() }
             isSaving = false
         }
     }

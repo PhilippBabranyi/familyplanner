@@ -5,17 +5,27 @@ import SwiftUI
 struct PickupCard: View {
     @ObservedObject var model: WeekViewModel
     let day: Weekday
+    let child: PickupChild
 
     @State private var editsTime = false
     @State private var newTime = Date()
+    @State private var editsBring = false
+    @State private var newBring = ""
 
-    private var plan: WeekPlan { model.shownPlan }
+    private var plan: WeekPlan { model.shownWeekPlan(for: child.id) }
     private var time: TimeOfDay? { plan.pickupTime(on: day) }
     private var override: PickupOverride? { plan.overrideByDay[day] }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
+            if let bring = plan.bringByDay[day] {
+                Text("🎒 \(bring)")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Theme.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("pickup-bring")
+            }
             HStack(spacing: 8) {
                 if time != nil { driverMenu }
                 changeMenu
@@ -28,6 +38,7 @@ struct PickupCard: View {
             in: RoundedRectangle(cornerRadius: 30, style: .continuous)
         )
         .sheet(isPresented: $editsTime) { timeSheet }
+        .sheet(isPresented: $editsBring) { bringSheet }
     }
 
     private var highlighted: Bool { override != nil }
@@ -38,7 +49,7 @@ struct PickupCard: View {
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(Theme.text)
             VStack(alignment: .leading, spacing: 2) {
-                Text("ABHOLUNG")
+                Text(child.label.uppercased())
                     .font(.system(size: 11, weight: .bold))
                     .tracking(1.2)
                     .foregroundStyle(Theme.muted)
@@ -59,16 +70,16 @@ struct PickupCard: View {
 
     /// Who picks up on this day. Nobody is entered by default; the morning push asks for it.
     private var driverMenu: some View {
-        let name = model.driverName(on: day)
+        let name = model.driverName(on: day, child: child.id)
         return Menu {
             ForEach(model.accounts) { member in
                 Button(member.name) {
-                    Task { _ = await model.setPickupDriver(day: day, memberId: member.id) }
+                    Task { _ = await model.setPickupDriver(day: day, memberId: member.id, child: child.id) }
                 }
             }
             if name != nil {
                 Button("Niemand", role: .destructive) {
-                    Task { _ = await model.setPickupDriver(day: day, memberId: nil) }
+                    Task { _ = await model.setPickupDriver(day: day, memberId: nil, child: child.id) }
                 }
             }
         } label: {
@@ -96,6 +107,15 @@ struct PickupCard: View {
             if override != nil {
                 Button("Auf normale Zeit zurücksetzen") { apply(nil) }
             }
+            Button("Mitnehmen nur an diesem Tag ändern") {
+                newBring = plan.bringByDay[day] ?? ""
+                editsBring = true
+            }
+            if plan.bringChangedDays.contains(day) {
+                Button("Mitnehmen wie üblich") {
+                    Task { _ = await model.setBringNote(day: day, note: nil, child: child.id) }
+                }
+            }
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "calendar.badge.clock")
@@ -110,7 +130,7 @@ struct PickupCard: View {
     private var timeSheet: some View {
         NavigationStack {
             Form {
-                DatePicker("Pickup", selection: $newTime, displayedComponents: .hourAndMinute)
+                DatePicker(child.label, selection: $newTime, displayedComponents: .hourAndMinute)
                     .accessibilityIdentifier("override-time")
             }
             .softFormStyle()
@@ -132,8 +152,38 @@ struct PickupCard: View {
         .presentationDetents([.medium])
     }
 
+    private var bringSheet: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Was mitnehmen?", text: $newBring)
+                        .accessibilityIdentifier("bring-text")
+                } footer: {
+                    Text("Gilt nur an diesem Tag. Leer lassen heißt: nichts mitnehmen.")
+                }
+            }
+            .softFormStyle()
+            .navigationTitle("Mitnehmen")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") { editsBring = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Sichern") {
+                        editsBring = false
+                        let text = newBring.trimmingCharacters(in: .whitespacesAndNewlines)
+                        Task { _ = await model.setBringNote(day: day, note: text, child: child.id) }
+                    }
+                    .accessibilityIdentifier("bring-save")
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
     private func apply(_ change: PickupOverride?) {
-        Task { _ = await model.setPickupOverride(day: day, override: change) }
+        Task { _ = await model.setPickupOverride(day: day, override: change, child: child.id) }
     }
 }
 

@@ -63,3 +63,16 @@ To stop it: `select cron.unschedule('daily-digest');`
 - The call returns JSON such as `{"date":"2026-12-01","due":["morning"],"sent":["morning"]}`; see the Edge Function
   logs. `"due":[]` outside the slots is normal.
 - To send a slot again on the same day, delete its row: `delete from public.digest_log where day = current_date;`
+
+## Pickup notes ("Mitnehmen") and the 7:30 nudge
+
+- In "Pickup & Ferien" each weekday can have a text of what to take along. The notes are a rhythm: a note counts from
+  its start day until a later note for the same weekday starts (table `pickup_notes`). A new rhythm is stored as new
+  rows with a new start day, old rows stay as history. An empty note ends an earlier one.
+- A note for a single day (menu "Nur dieser Tag" on the day card) is stored in `pickup_note_overrides` and wins over the
+  rhythm. An empty one means nothing that day. There are no notes in holidays.
+- The note appears on the day card, on the start card and as a line "🎒 Mitnehmen: …" in the morning and evening push.
+- At 7:30 (made up for until 9:00) everyone gets the push "🎒 Gleich geht's los" with the note, once per day (slot
+  `leave`), only on days that have a note.
+- `families.pickup_label` is how the family calls the pickup in the app and in the pushes. It is set in the SQL editor,
+  e.g. `update public.families set pickup_label = '...';`, so that no name is part of the repository.

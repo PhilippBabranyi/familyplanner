@@ -6,8 +6,8 @@
 
 export type Slot = "morning" | "evening";
 
-/** The slots that are written to digest_log: the two digests and the pickup reminder. */
-export type LogSlot = Slot | "pickup";
+/** The slots that are written to digest_log: the two digests, the pickup reminder of a child and the nudge at leaving. */
+export type LogSlot = Slot | "leave" | `pickup:${string}`;
 
 export interface CalendarItem {
   title: string;
@@ -36,8 +36,22 @@ export interface OpenTask {
   cashCents: number | null;
 }
 
-export interface FamilyData {
-  items: CalendarItem[];
+/** What has to be taken along on a weekday, from `validFrom` on. An empty note means nothing. */
+export interface PickupNote {
+  weekday: number;
+  validFrom: string;
+  note: string;
+}
+
+/** The pickup of one child: times, who picks up, changes for single days and what to take along. */
+export interface ChildData {
+  id: string;
+  /** First name of the child; the pickup is called "Pickup <name>". */
+  name: string;
+  /** The "take along" rhythm: a note counts from its start day until a later one for the same weekday. */
+  pickupNotes: PickupNote[];
+  /** Notes for single days (`yyyy-MM-dd`); an empty one means nothing that day. */
+  pickupNoteOverrides: Record<string, string>;
   /** Pickup time by ISO weekday. */
   pickups: Record<number, string>;
   /** Minutes before the pickup at which the reminder comes, by ISO weekday. */
@@ -46,16 +60,33 @@ export interface FamilyData {
   pickupOverrides: Record<string, string | null>;
   /** Who picks up on which day (`yyyy-MM-dd`). A day that is missing has nobody entered yet. */
   pickupDrivers: Record<string, { id: string; name: string }>;
+}
+
+export interface FamilyData {
+  /** The children that have a pickup. */
+  children: ChildData[];
+  items: CalendarItem[];
   holidays: Holiday[];
   /** Tasks that are not done and have a due date. */
   tasks: OpenTask[];
 }
 
-export interface DayPlan {
-  date: string;
+/** The pickup of one child on one day. */
+export interface ChildDay {
+  childId: string;
+  /** "Pickup Kim" */
+  label: string;
   pickup: string | null;
   /** Name of the person who picks up, or null if nobody is entered. */
   pickupDriver: string | null;
+  /** What to take along that day, or null. */
+  bring: string | null;
+}
+
+export interface DayPlan {
+  date: string;
+  /** One entry per child. */
+  children: ChildDay[];
   holiday: string | null;
   items: { time: string; title: string; assignee: string | null }[];
   tasksDue: { title: string; time: string | null; assignee: string | null }[];
@@ -151,6 +182,38 @@ function occurs(item: CalendarItem, date: string, weekday: number, inHoliday: bo
   return !(item.skipHolidays && inHoliday);
 }
 
+/** What a child takes along on a day: the note for that single day, else the rhythm. Nothing in the holidays. */
+export function bringNote(child: ChildData, date: string, inHoliday: boolean): string | null {
+  if (inHoliday) return null;
+  const single = child.pickupNoteOverrides[date];
+  if (single !== undefined) return single.trim() || null;
+  const weekday = isoWeekday(date);
+  let current: PickupNote | null = null;
+  for (const note of child.pickupNotes) {
+    if (note.weekday !== weekday || note.validFrom > date) continue;
+    if (!current || note.validFrom > current.validFrom) current = note;
+  }
+  return current?.note.trim() || null;
+}
+
+/** How the pickup of a child is called. */
+export function pickupLabel(child: ChildData): string {
+  return `Pickup ${child.name}`;
+}
+
+export function planChild(child: ChildData, date: string, inHoliday: boolean): ChildDay {
+  const changed = date in child.pickupOverrides;
+  const regular = child.pickups[isoWeekday(date)] ?? null;
+  const pickup = inHoliday ? null : changed ? child.pickupOverrides[date] : regular;
+  return {
+    childId: child.id,
+    label: pickupLabel(child),
+    pickup: pickup ? hhmm(pickup) : null,
+    pickupDriver: pickup ? child.pickupDrivers[date]?.name ?? null : null,
+    bring: bringNote(child, date, inHoliday),
+  };
+}
+
 export function planDay(data: FamilyData, date: string): DayPlan {
   const weekday = isoWeekday(date);
   const holiday = data.holidays.find((h) => h.startsOn <= date && date <= h.endsOn) ?? null;
@@ -160,14 +223,10 @@ export function planDay(data: FamilyData, date: string): DayPlan {
   const due = data.tasks
     .filter((task) => task.dueOn === date)
     .sort((a, b) => (a.dueTime ?? "99:99").localeCompare(b.dueTime ?? "99:99"));
-  const changed = date in data.pickupOverrides;
-  const regular = data.pickups[weekday] ?? null;
-  const pickup = holiday ? null : changed ? data.pickupOverrides[date] : regular;
   const cash = [...items, ...due].reduce((sum, entry) => sum + (entry.cashCents ?? 0), 0);
   return {
     date,
-    pickup: pickup ? hhmm(pickup) : null,
-    pickupDriver: pickup ? data.pickupDrivers[date]?.name ?? null : null,
+    children: data.children.map((child) => planChild(child, date, holiday !== null)),
     holiday: holiday?.name ?? null,
     items: items.map((i) => ({ time: hhmm(i.atTime), title: i.title, assignee: i.assignee })),
     tasksDue: due.map((t) => ({ title: t.title, time: t.dueTime ? hhmm(t.dueTime) : null, assignee: t.assignee })),
@@ -188,6 +247,11 @@ const EVENING_TITLES = ["🌙 Morgen auf dem Plan", "🎒 Kurz vorausgeschaut: m
 const MAX_ITEM_LINES = 4;
 const MAX_TASK_NAMES = 3;
 
+/** "Pickup Kim" -> "Kim" */
+function nameOfLabel(label: string): string {
+  return label.replace(/^Pickup /, "");
+}
+
 function withPerson(title: string, person: string | null): string {
   return person ? `${title} (${person})` : title;
 }
@@ -202,12 +266,16 @@ export function buildDigest(
   const title = titles[Math.floor(random() * titles.length) % titles.length];
   const lines: string[] = [];
   if (plan.holiday) lines.push(`Ferien: ${plan.holiday}`);
-  if (plan.pickup) {
+  for (const child of plan.children) {
+    if (!child.pickup) continue;
     lines.push(
-      plan.pickupDriver
-        ? `Pickup ${plan.pickup} (${plan.pickupDriver})`
-        : `🚗 Pickup ${plan.pickup}: noch niemand eingetragen`,
+      child.pickupDriver
+        ? `${child.label} ${child.pickup} (${child.pickupDriver})`
+        : `🚗 ${child.label} ${child.pickup}: noch niemand eingetragen`,
     );
+  }
+  for (const child of plan.children) {
+    if (child.bring) lines.push(`🎒 Mitnehmen${plan.children.length > 1 ? ` (${nameOfLabel(child.label)})` : ""}: ${child.bring}`);
   }
   for (const item of plan.items.slice(0, MAX_ITEM_LINES)) {
     lines.push(`${item.time} ${withPerson(item.title, item.assignee)}`);
@@ -236,25 +304,54 @@ export function targetDate(slot: Slot, today: string): string {
 }
 
 export interface PickupReminder {
+  childId: string;
   /** Account that has to leave soon. */
   driverId: string;
   message: { title: string; body: string };
 }
 
 /**
- * The reminder "time to leave" for today's pickup, if it is due: from `remind_minutes` before the pickup until the
- * pickup itself (a missed tick is made up for), and only if somebody is entered and it is no holiday.
+ * The reminders "time to leave" for today's pickups that are due: from `remind_minutes` before the pickup until the
+ * pickup itself (a missed tick is made up for), only for children with somebody entered and not in the holidays.
  */
-export function pickupReminder(data: FamilyData, clock: Clock): PickupReminder | null {
+export function pickupReminders(data: FamilyData, clock: Clock): PickupReminder[] {
   const plan = planDay(data, clock.date);
-  const driver = data.pickupDrivers[clock.date];
-  if (!plan.pickup || !driver) return null;
-  const [hours, minutes] = plan.pickup.split(":").map(Number);
-  const pickupAt = hours * 60 + minutes;
-  const lead = data.pickupRemind[clock.weekday] ?? Object.values(data.pickupRemind)[0] ?? 30;
-  if (clock.minutes < pickupAt - lead || clock.minutes >= pickupAt) return null;
-  return {
-    driverId: driver.id,
-    message: { title: "🚗 Zeit zum Losfahren", body: `Pickup um ${plan.pickup}. Du holst heute ab.` },
-  };
+  const due: PickupReminder[] = [];
+  for (const child of data.children) {
+    const day = plan.children.find((entry) => entry.childId === child.id);
+    const driver = child.pickupDrivers[clock.date];
+    if (!day?.pickup || !driver) continue;
+    const [hours, minutes] = day.pickup.split(":").map(Number);
+    const pickupAt = hours * 60 + minutes;
+    const lead = child.pickupRemind[clock.weekday] ?? Object.values(child.pickupRemind)[0] ?? 30;
+    if (clock.minutes < pickupAt - lead || clock.minutes >= pickupAt) continue;
+    due.push({
+      childId: child.id,
+      driverId: driver.id,
+      message: { title: "🚗 Zeit zum Losfahren", body: `${day.label} um ${day.pickup}. Du holst heute ab.` },
+    });
+  }
+  return due;
+}
+
+/** The digest_log slot of the pickup reminder of a child. */
+export function pickupSlot(childId: string): LogSlot {
+  return `pickup:${childId}`;
+}
+
+/** The nudge when the family leaves the house. */
+export const LEAVE_MINUTES = 7 * 60 + 30;
+
+/**
+ * "Did you think of ...?" at 7:30, only on days with something to take along. A missed tick is made up for
+ * within the catch-up time.
+ */
+export function leaveNudge(data: FamilyData, clock: Clock): { title: string; body: string } | null {
+  if (clock.minutes < LEAVE_MINUTES || clock.minutes >= LEAVE_MINUTES + CATCH_UP_MINUTES) return null;
+  const notes = planDay(data, clock.date).children.filter((child) => child.bring);
+  if (notes.length === 0) return null;
+  const body = notes.length === 1 && data.children.length === 1
+    ? `Habt ihr daran gedacht? ${notes[0].bring}`
+    : ["Habt ihr daran gedacht?", ...notes.map((child) => `${nameOfLabel(child.label)}: ${child.bring}`)].join("\n");
+  return { title: "🎒 Gleich geht's los", body };
 }

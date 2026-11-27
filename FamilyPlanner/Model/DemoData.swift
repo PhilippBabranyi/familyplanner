@@ -111,7 +111,8 @@ enum DemoData {
             .monday: .at(15, 20), .tuesday: .at(15, 20), .wednesday: .at(15, 20),
             .thursday: .at(16, 20), .friday: .at(15, 20)
         ],
-        holidays: []
+        holidays: [],
+        child: PickupChild(id: "KIM", name: "Kim")
     )
 
     private static func demoItem(

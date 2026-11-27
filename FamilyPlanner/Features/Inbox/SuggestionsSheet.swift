@@ -20,8 +20,12 @@ struct SuggestionsSheet: View {
                         ErrorBanner(message: message)
                     }
                     ForEach(week.openPickups()) { pickup in
-                        OpenPickupCard(pickup: pickup, accounts: week.accounts) { member in
-                            Task { _ = await week.setPickupDriver(dayText: pickup.dayText, memberId: member.id) }
+                        OpenPickupCard(pickup: pickup, accounts: week.accounts, label: pickup.label) { member in
+                            Task {
+                                _ = await week.setPickupDriver(
+                                    dayText: pickup.dayText, memberId: member.id, child: pickup.child?.id
+                                )
+                            }
                         }
                     }
                     if inbox.suggestions.isEmpty && week.openPickups().isEmpty {

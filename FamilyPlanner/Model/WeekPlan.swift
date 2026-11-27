@@ -35,6 +35,10 @@ struct WeekPlan {
     var driverByDay: [Weekday: String] = [:]
     /// Changes of the pickup on single days of this week.
     var overrideByDay: [Weekday: PickupOverride] = [:]
+    /// What to take along, by weekday of this week.
+    var bringByDay: [Weekday: String] = [:]
+    /// Days of this week whose note was set for that single day.
+    var bringChangedDays: Set<Weekday> = []
 
     /// The mark of a day's pickup, nil if there is no pickup (and no change) on that day.
     func pickupMark(on day: Weekday) -> PickupMark? {

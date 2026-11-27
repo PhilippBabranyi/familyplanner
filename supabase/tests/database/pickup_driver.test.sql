@@ -18,10 +18,13 @@ insert into public.family_members (family_id, user_id, display_name, role) value
   ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000a3', 'Helper', 'guest'),
   ('00000000-0000-0000-0000-0000000000f2', '00000000-0000-0000-0000-0000000000a4', 'Stranger', 'admin');
 
-insert into public.pickup_times (family_id, weekday, pickup_time) values
-  ('00000000-0000-0000-0000-0000000000f1', 4, '16:20');
-insert into public.pickup_drivers (family_id, day, driver) values
-  ('00000000-0000-0000-0000-0000000000f1', '2026-12-03', '00000000-0000-0000-0000-0000000000a2');
+insert into public.household_people (id, family_id, display_name, has_pickup) values
+  ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000f1', 'Kim', true);
+
+insert into public.pickup_times (family_id, person_id, weekday, pickup_time) values
+  ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', 4, '16:20');
+insert into public.pickup_drivers (family_id, person_id, day, driver) values
+  ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', '2026-12-03', '00000000-0000-0000-0000-0000000000a2');
 
 -- Constraints
 select is(
@@ -37,19 +40,19 @@ select throws_ok(
   '23514', null, 'the lead time cannot be longer than 3 hours'
 );
 select throws_ok(
-  $$insert into public.pickup_drivers (family_id, day, driver)
-    values ('00000000-0000-0000-0000-0000000000f1', '2026-12-04', '00000000-0000-0000-0000-0000000000a4')$$,
+  $$insert into public.pickup_drivers (family_id, person_id, day, driver)
+    values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', '2026-12-04', '00000000-0000-0000-0000-0000000000a4')$$,
   '23503', null, 'somebody outside the family cannot be entered'
 );
 select throws_ok(
-  $$insert into public.pickup_drivers (family_id, day, driver)
-    values ('00000000-0000-0000-0000-0000000000f1', '2026-12-03', '00000000-0000-0000-0000-0000000000a1')$$,
+  $$insert into public.pickup_drivers (family_id, person_id, day, driver)
+    values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', '2026-12-03', '00000000-0000-0000-0000-0000000000a1')$$,
   '23505', null, 'one driver per day'
 );
 select lives_ok(
   $$insert into public.digest_log (family_id, day, slot)
-    values ('00000000-0000-0000-0000-0000000000f1', '2026-12-03', 'pickup')$$,
-  'the pickup reminder is a slot of its own'
+    values ('00000000-0000-0000-0000-0000000000f1', '2026-12-03', 'pickup:00000000-0000-0000-0000-0000000000c1')$$,
+  'the pickup reminder is a slot of its own per child'
 );
 
 -- Privileges
@@ -63,8 +66,8 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a2","role":"authenticated"}', true);
 select is((select count(*) from public.pickup_drivers), 1::bigint, 'family sees the drivers of its own family');
 select lives_ok(
-  $$insert into public.pickup_drivers (family_id, day, driver)
-    values ('00000000-0000-0000-0000-0000000000f1', '2026-12-04', '00000000-0000-0000-0000-0000000000a1')$$,
+  $$insert into public.pickup_drivers (family_id, person_id, day, driver)
+    values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', '2026-12-04', '00000000-0000-0000-0000-0000000000a1')$$,
   'family can enter a driver'
 );
 
@@ -74,8 +77,8 @@ select is((select count(*) from public.pickup_drivers), 0::bigint, 'a guest sees
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a4","role":"authenticated"}', true);
 select is((select count(*) from public.pickup_drivers), 0::bigint, 'another family sees no drivers');
 select throws_ok(
-  $$insert into public.pickup_drivers (family_id, day, driver)
-    values ('00000000-0000-0000-0000-0000000000f1', '2026-12-05', '00000000-0000-0000-0000-0000000000a1')$$,
+  $$insert into public.pickup_drivers (family_id, person_id, day, driver)
+    values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000c1', '2026-12-05', '00000000-0000-0000-0000-0000000000a1')$$,
   '42501', null, 'another family cannot enter a driver'
 );
 

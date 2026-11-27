@@ -40,12 +40,21 @@ enum WeekBuilder {
         var holidayNames: [Weekday: String] = [:]
         var driverByDay: [Weekday: String] = [:]
         var overrideByDay: [Weekday: PickupOverride] = [:]
+        var bringByDay: [Weekday: String] = [:]
+        var bringChangedDays: Set<Weekday> = []
         for day in Weekday.allCases {
             let dayText = isoString(date(of: day, weekStart: weekStart, calendar: calendar), calendar: calendar)
             let holiday = data.holidays.first { $0.contains(dayText) }
             if let holiday { holidayNames[day] = holiday.name }
             if holiday == nil, let driver = data.pickupDrivers[dayText] { driverByDay[day] = driver }
             if holiday == nil, let change = data.pickupOverrides[dayText] { overrideByDay[day] = change }
+            if let bring = PickupNotes.bring(
+                on: dayText, weekday: day, notes: data.pickupNotes, overrides: data.pickupNoteOverrides,
+                inHoliday: holiday != nil
+            ) {
+                bringByDay[day] = bring
+            }
+            if holiday == nil, data.pickupNoteOverrides[dayText] != nil { bringChangedDays.insert(day) }
             for item in data.items where occurs(item, on: dayText, as: day, inHoliday: holiday != nil) {
                 itemsByDay[day, default: []].append(WeekItem(
                     id: "\(item.id)-\(dayText)",
@@ -62,7 +71,7 @@ enum WeekBuilder {
         schedule.pickupDays.subtract(holidayNames.keys)
         return WeekPlan(
             pickup: schedule, itemsByDay: itemsByDay, holidays: holidayNames, driverByDay: driverByDay,
-            overrideByDay: overrideByDay
+            overrideByDay: overrideByDay, bringByDay: bringByDay, bringChangedDays: bringChangedDays
         )
     }
 

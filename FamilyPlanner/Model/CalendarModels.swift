@@ -71,6 +71,23 @@ struct CalendarData {
     var pickupOverrides: [String: PickupOverride] = [:]
     /// Minutes before the pickup at which the person who picks up gets the reminder.
     var remindMinutes = 30
+    /// What to take along, by weekday and start day (the rhythm), and for single days by `yyyy-MM-dd`.
+    var pickupNotes: [PickupNote] = []
+    var pickupNoteOverrides: [String: String] = [:]
+    /// The child this pickup data belongs to. Nil while no child has a pickup yet.
+    var child: PickupChild?
+
+    /// How the pickup is called: "Pickup Kim".
+    var pickupLabel: String { child?.label ?? "Pickup" }
+}
+
+/// A child of the household that has a pickup.
+struct PickupChild: Identifiable, Equatable {
+    /// The id of the person (`UUID.uuidString`, upper case).
+    let id: String
+    let name: String
+
+    var label: String { "Pickup \(name)" }
 }
 
 /// Input of the task form. A nil id creates a new task.

@@ -11,12 +11,15 @@
 import {
   berlinClock,
   buildDigest,
+  type ChildData,
   type Clock,
   cleanupDue,
   dueSlots,
   type FamilyData,
+  leaveNudge,
   type LogSlot,
-  pickupReminder,
+  pickupReminders,
+  pickupSlot,
   planDay,
   type Slot,
   suggestionCutoff,
@@ -77,20 +80,42 @@ async function sendSlot(familyId: string, clock: Clock, slot: Slot, deps: Depend
   }
 }
 
-/** Sends "time to leave" to the person who picks up, once per day. Returns true if it was sent. */
-async function sendPickupReminder(familyId: string, clock: Clock, deps: Dependencies): Promise<boolean> {
+/** Sends "time to leave" to the person who picks up, once per child and day. Returns how many were sent. */
+async function sendPickupReminders(familyId: string, clock: Clock, deps: Dependencies): Promise<number> {
   const data = await deps.store.loadFamilyData(familyId);
-  const reminder = pickupReminder(data, clock);
-  if (!reminder) return false;
-  if (!(await deps.store.claimSlot(familyId, clock.date, "pickup"))) return false;
+  let sent = 0;
+  for (const reminder of pickupReminders(data, clock)) {
+    const slot = pickupSlot(reminder.childId);
+    if (!(await deps.store.claimSlot(familyId, clock.date, slot))) continue;
+    try {
+      const tokens = await deps.store.loadDeviceTokens(familyId, reminder.driverId);
+      if (tokens.length > 0) {
+        const { invalid } = await deps.push(tokens, reminder.message);
+        if (invalid.length > 0) await deps.store.deleteDeviceTokens(invalid);
+      }
+      sent++;
+    } catch (error) {
+      await deps.store.releaseSlot(familyId, clock.date, slot);
+      throw error;
+    }
+  }
+  return sent;
+}
+
+/** Sends the nudge at leaving the house to the whole family, once per day. Returns true if it was sent. */
+async function sendLeaveNudge(familyId: string, clock: Clock, deps: Dependencies): Promise<boolean> {
+  const data = await deps.store.loadFamilyData(familyId);
+  const message = leaveNudge(data, clock);
+  if (!message) return false;
+  if (!(await deps.store.claimSlot(familyId, clock.date, "leave"))) return false;
   try {
-    const tokens = await deps.store.loadDeviceTokens(familyId, reminder.driverId);
+    const tokens = await deps.store.loadDeviceTokens(familyId);
     if (tokens.length === 0) return true;
-    const { invalid } = await deps.push(tokens, reminder.message);
+    const { invalid } = await deps.push(tokens, message);
     if (invalid.length > 0) await deps.store.deleteDeviceTokens(invalid);
     return true;
   } catch (error) {
-    await deps.store.releaseSlot(familyId, clock.date, "pickup");
+    await deps.store.releaseSlot(familyId, clock.date, "leave");
     throw error;
   }
 }
@@ -114,9 +139,14 @@ export async function handleRequest(req: Request, deps: Dependencies): Promise<R
         }
       }
       try {
-        if (await sendPickupReminder(familyId, clock, deps)) sent.push("pickup");
+        for (let i = await sendPickupReminders(familyId, clock, deps); i > 0; i--) sent.push("pickup");
       } catch (error) {
         console.error("pickup reminder failed", error instanceof Error ? error.message : "unknown error");
+      }
+      try {
+        if (await sendLeaveNudge(familyId, clock, deps)) sent.push("leave");
+      } catch (error) {
+        console.error("leave nudge failed", error instanceof Error ? error.message : "unknown error");
       }
     }
     let cleaned: number | undefined;
@@ -147,6 +177,55 @@ async function createStore(): Promise<Store> {
   const fail = (error: { message: string } | null) => {
     if (error) throw new Error(error.message);
   };
+  /** Everything of one child's pickup. The notes are an extra: before their migration they are simply empty. */
+  async function loadChild(
+    familyId: string,
+    id: string,
+    name: string,
+    names: Map<string, string>,
+  ): Promise<ChildData> {
+    const [times, drivers, overrides, notes, noteDays] = await Promise.all([
+      client.from("pickup_times").select("weekday,pickup_time,remind_minutes")
+        .eq("family_id", familyId).eq("person_id", id),
+      client.from("pickup_drivers").select("day,driver")
+        .eq("family_id", familyId).eq("person_id", id).gte("day", yesterday()),
+      client.from("pickup_overrides").select("day,pickup_time")
+        .eq("family_id", familyId).eq("person_id", id).gte("day", yesterday()),
+      client.from("pickup_notes").select("weekday,valid_from,note").eq("family_id", familyId).eq("person_id", id),
+      client.from("pickup_note_overrides").select("day,note")
+        .eq("family_id", familyId).eq("person_id", id).gte("day", yesterday()),
+    ]);
+    for (const result of [times, drivers, overrides]) fail(result.error);
+    const pickups: Record<number, string> = {};
+    const pickupRemind: Record<number, number> = {};
+    for (const row of times.data ?? []) {
+      pickups[row.weekday as number] = row.pickup_time as string;
+      pickupRemind[row.weekday as number] = row.remind_minutes as number;
+    }
+    const pickupOverrides: Record<string, string | null> = {};
+    for (const row of overrides.data ?? []) pickupOverrides[row.day as string] = (row.pickup_time as string | null) ?? null;
+    const pickupDrivers: Record<string, { id: string; name: string }> = {};
+    for (const row of drivers.data ?? []) {
+      const driver = row.driver as string;
+      pickupDrivers[row.day as string] = { id: driver, name: names.get(driver) ?? "?" };
+    }
+    const pickupNoteOverrides: Record<string, string> = {};
+    for (const row of noteDays.data ?? []) pickupNoteOverrides[row.day as string] = row.note as string;
+    return {
+      id,
+      name,
+      pickups,
+      pickupRemind,
+      pickupOverrides,
+      pickupDrivers,
+      pickupNotes: (notes.data ?? []).map((row) => ({
+        weekday: row.weekday as number,
+        validFrom: row.valid_from as string,
+        note: row.note as string,
+      })),
+      pickupNoteOverrides,
+    };
+  }
   return {
     async loadFamilyIds() {
       const { data, error } = await client.from("families").select("id");
@@ -154,41 +233,30 @@ async function createStore(): Promise<Store> {
       return (data ?? []).map((row) => row.id as string);
     },
     async loadFamilyData(familyId) {
-      const [items, pickups, holidays, tasks, accounts, people, drivers, overrides] = await Promise.all([
+      const [items, holidays, tasks, accounts, people] = await Promise.all([
         client.from("calendar_items")
           .select("title,starts_on,at_time,weekdays,repeat_until,skip_holidays,assignee,assignee_person,cash_cents")
           .eq("family_id", familyId),
-        client.from("pickup_times").select("weekday,pickup_time,remind_minutes").eq("family_id", familyId),
         client.from("holidays").select("name,starts_on,ends_on").eq("family_id", familyId),
         client.from("tasks")
           .select("title,assignee,assignee_person,due_on,due_time,cash_cents")
           .eq("family_id", familyId).neq("status", "done").not("due_on", "is", null),
         client.from("family_members").select("user_id,display_name").eq("family_id", familyId),
-        client.from("household_people").select("id,display_name").eq("family_id", familyId),
-        client.from("pickup_drivers").select("day,driver").eq("family_id", familyId).gte("day", yesterday()),
-        client.from("pickup_overrides").select("day,pickup_time").eq("family_id", familyId).gte("day", yesterday()),
+        client.from("household_people").select("id,display_name,has_pickup").eq("family_id", familyId),
       ]);
-      for (const result of [items, pickups, holidays, tasks, accounts, people, drivers, overrides]) {
-        fail(result.error);
-      }
+      for (const result of [items, holidays, tasks, accounts]) fail(result.error);
       const names = new Map<string, string>();
       for (const row of accounts.data ?? []) names.set(row.user_id as string, row.display_name as string);
       for (const row of people.data ?? []) names.set(row.id as string, row.display_name as string);
       const nameOf = (account: string | null, person: string | null) => names.get(account ?? person ?? "") ?? null;
-      const pickupTimes: Record<number, string> = {};
-      const pickupRemind: Record<number, number> = {};
-      for (const row of pickups.data ?? []) {
-        pickupTimes[row.weekday as number] = row.pickup_time as string;
-        pickupRemind[row.weekday as number] = row.remind_minutes as number;
-      }
-      const pickupOverrides: Record<string, string | null> = {};
-      for (const row of overrides.data ?? []) pickupOverrides[row.day as string] = (row.pickup_time as string | null) ?? null;
-      const pickupDrivers: Record<string, { id: string; name: string }> = {};
-      for (const row of drivers.data ?? []) {
-        const id = row.driver as string;
-        pickupDrivers[row.day as string] = { id, name: names.get(id) ?? "?" };
-      }
+      // The children are an extra that needs its migration: without it there are simply no pickups.
+      const children = people.error ? [] : await Promise.all(
+        (people.data ?? []).filter((row) => row.has_pickup === true).map((row) =>
+          loadChild(familyId, row.id as string, row.display_name as string, names)
+        ),
+      );
       return {
+        children,
         items: (items.data ?? []).map((row) => ({
           title: row.title as string,
           startsOn: row.starts_on as string,
@@ -199,10 +267,6 @@ async function createStore(): Promise<Store> {
           assignee: nameOf(row.assignee as string | null, row.assignee_person as string | null),
           cashCents: (row.cash_cents as number | null) ?? null,
         })),
-        pickups: pickupTimes,
-        pickupRemind,
-        pickupDrivers,
-        pickupOverrides,
         holidays: (holidays.data ?? []).map((row) => ({
           name: row.name as string,
           startsOn: row.starts_on as string,

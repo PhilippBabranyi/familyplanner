@@ -93,12 +93,20 @@ struct StartView: View {
         let items = model.plan.items(on: model.todayWeekday)
         let cash = model.plan.cashNeededCents(on: model.todayWeekday)
         return VStack(alignment: .leading, spacing: 8) {
-            if let pickup = model.todayPickup {
+            ForEach(model.todayPickups) { pickup in
                 HStack(spacing: 8) {
                     Circle().fill(dotColor(for: pickup)).frame(width: 10, height: 10)
                     Text(pickupText(pickup))
                 }
                 .foregroundStyle(Theme.text)
+            }
+            ForEach(model.calendars.indices, id: \.self) { index in
+                let child = model.calendars[index].child
+                if let bring = model.weekPlan(for: child?.id).bringByDay[model.todayWeekday] {
+                    Text("🎒 \(model.children.count > 1 ? "\(child?.name ?? ""): " : "")\(bring)")
+                        .foregroundStyle(Theme.text)
+                        .accessibilityIdentifier("start-bring")
+                }
             }
             ForEach(items.prefix(Self.maxItems)) { item in
                 let someoneElse = item.isForSomeoneElse(than: model.memberName)
@@ -125,7 +133,7 @@ struct StartView: View {
                 Text("Bargeld: \(formattedEuros(cents: cash))")
                     .foregroundStyle(Theme.muted)
             }
-            if items.isEmpty && model.todayPickup == nil {
+            if items.isEmpty && model.todayPickups.isEmpty {
                 Text("Heute steht nichts an.")
                     .foregroundStyle(Theme.muted)
             }
@@ -144,8 +152,8 @@ struct StartView: View {
     }
 
     private func pickupText(_ pickup: TodayPickup) -> String {
-        guard let driver = pickup.driver else { return "Pickup \(pickup.time): noch niemand eingetragen" }
-        return "Pickup \(pickup.time): \(driver) holt ab"
+        guard let driver = pickup.driver else { return "\(pickup.label) \(pickup.time): noch niemand eingetragen" }
+        return "\(pickup.label) \(pickup.time): \(driver) holt ab"
     }
 
     private func dotColor(for pickup: TodayPickup) -> Color {
