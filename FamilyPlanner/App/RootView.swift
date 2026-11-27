@@ -42,6 +42,7 @@ struct RootView: View {
             await inbox.load()
             await PushPermission.request()
             openSuggestionsIfRequested()
+            openDayIfRequested()
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active, auth.state == .signedIn else { return }
@@ -57,6 +58,9 @@ struct RootView: View {
         .onReceive(NotificationCenter.default.publisher(for: .pushTokenReceived)) { note in
             guard let token = note.object as? String else { return }
             Task { await inbox.registerDevice(token: token) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openDay)) { _ in
+            if auth.state == .signedIn { openDayIfRequested() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .openSuggestions)) { _ in
             if auth.state == .signedIn { openSuggestionsIfRequested() }
@@ -101,6 +105,15 @@ struct RootView: View {
 
     private var bell: some View {
         BellButton(count: inbox.count + week.openPickups().count) { showSuggestions = true }
+    }
+
+    /// A tap on a digest notification opens the week view on the day the message is about.
+    private func openDayIfRequested() {
+        guard let text = PushState.openDayRequested else { return }
+        PushState.openDayRequested = nil
+        guard let date = FormDates.date(fromISO: text) else { return }
+        route = .week
+        week.focus(on: date)
     }
 
     private func openSuggestionsIfRequested() {

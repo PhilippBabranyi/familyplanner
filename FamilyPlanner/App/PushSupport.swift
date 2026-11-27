@@ -6,11 +6,15 @@ extension Notification.Name {
     static let pushTokenReceived = Notification.Name("de.babranyi.familyplanner.pushTokenReceived")
     /// Posted when the person taps a push notification: the bell should open.
     static let openSuggestions = Notification.Name("de.babranyi.familyplanner.openSuggestions")
+    /// Posted when the person taps a push notification about a day: the week view opens on that day.
+    static let openDay = Notification.Name("de.babranyi.familyplanner.openDay")
 }
 
 /// Remembers a tap on a notification that arrived before the screen was ready (cold start).
 enum PushState {
     static var openSuggestionsRequested = false
+    /// `yyyy-MM-dd` of a day to open, from a tap on a digest notification.
+    static var openDayRequested: String?
 }
 
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
@@ -45,8 +49,13 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        PushState.openSuggestionsRequested = true
-        NotificationCenter.default.post(name: .openSuggestions, object: nil)
+        if let day = response.notification.request.content.userInfo["day"] as? String {
+            PushState.openDayRequested = day
+            NotificationCenter.default.post(name: .openDay, object: nil)
+        } else {
+            PushState.openSuggestionsRequested = true
+            NotificationCenter.default.post(name: .openSuggestions, object: nil)
+        }
         completionHandler()
     }
 }

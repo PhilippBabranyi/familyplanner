@@ -68,7 +68,8 @@ async function sendSlot(familyId: string, clock: Clock, slot: Slot, deps: Depend
   if (!(await deps.store.claimSlot(familyId, clock.date, slot))) return false;
   try {
     const data = await deps.store.loadFamilyData(familyId);
-    const message = buildDigest(slot, planDay(data, targetDate(slot, clock.date)), deps.random);
+    const day = targetDate(slot, clock.date);
+    const message = { ...buildDigest(slot, planDay(data, day), deps.random), day };
     const tokens = await deps.store.loadDeviceTokens(familyId);
     if (tokens.length === 0) return true;
     const { invalid } = await deps.push(tokens, message);
@@ -90,7 +91,7 @@ async function sendPickupReminders(familyId: string, clock: Clock, deps: Depende
     try {
       const tokens = await deps.store.loadDeviceTokens(familyId, reminder.driverId);
       if (tokens.length > 0) {
-        const { invalid } = await deps.push(tokens, reminder.message);
+        const { invalid } = await deps.push(tokens, { ...reminder.message, day: clock.date });
         if (invalid.length > 0) await deps.store.deleteDeviceTokens(invalid);
       }
       sent++;
@@ -111,7 +112,7 @@ async function sendLeaveNudge(familyId: string, clock: Clock, deps: Dependencies
   try {
     const tokens = await deps.store.loadDeviceTokens(familyId);
     if (tokens.length === 0) return true;
-    const { invalid } = await deps.push(tokens, message);
+    const { invalid } = await deps.push(tokens, { ...message, day: clock.date });
     if (invalid.length > 0) await deps.store.deleteDeviceTokens(invalid);
     return true;
   } catch (error) {

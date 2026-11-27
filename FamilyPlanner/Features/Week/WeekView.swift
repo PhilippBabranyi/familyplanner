@@ -90,6 +90,10 @@ struct WeekView: View {
                 selectedDay = model.moveDay(from: day, by: drag.translation.width < 0 ? 1 : -1)
             }
         )
+        .onAppear { if let focused = model.takeFocusedDay() { selectedDay = focused } }
+        .onChange(of: model.focusedDay) { _, requested in
+            if requested != nil { selectedDay = model.takeFocusedDay() }
+        }
         .sensoryFeedback(.success, trigger: model.savedNotice) { _, notice in notice != nil }
         .refreshable { await model.load() }
         .task { await model.load() }
