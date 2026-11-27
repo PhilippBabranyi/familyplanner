@@ -182,18 +182,24 @@ function occurs(item: CalendarItem, date: string, weekday: number, inHoliday: bo
   return !(item.skipHolidays && inHoliday);
 }
 
-/** What a child takes along on a day: the note for that single day, else the rhythm. Nothing in the holidays. */
+/**
+ * What a child takes along on a day: the rhythm plus the note for that single day ("Piano book & Jumper").
+ * An empty single-day note means nothing that day. Nothing in the holidays.
+ */
 export function bringNote(child: ChildData, date: string, inHoliday: boolean): string | null {
   if (inHoliday) return null;
-  const single = child.pickupNoteOverrides[date];
-  if (single !== undefined) return single.trim() || null;
   const weekday = isoWeekday(date);
   let current: PickupNote | null = null;
   for (const note of child.pickupNotes) {
     if (note.weekday !== weekday || note.validFrom > date) continue;
     if (!current || note.validFrom > current.validFrom) current = note;
   }
-  return current?.note.trim() || null;
+  const usual = current?.note.trim() || null;
+  const single = child.pickupNoteOverrides[date];
+  if (single === undefined) return usual;
+  const extra = single.trim();
+  if (!extra) return null;
+  return usual ? `${usual} & ${extra}` : extra;
 }
 
 /** How the pickup of a child is called. */
