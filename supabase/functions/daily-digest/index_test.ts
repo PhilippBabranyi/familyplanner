@@ -6,6 +6,7 @@ import type { PushMessage } from "./push.ts";
 
 const SECRET = "s".repeat(32);
 const emptyData: FamilyData = {
+  pickupLabel: "Pickup", pickupNotes: [], pickupNoteOverrides: {},
   items: [], pickups: {}, pickupRemind: {}, pickupDrivers: {}, pickupOverrides: {}, holidays: [], tasks: [],
 };
 // 2026-12-03 is a Thursday: pickup at 16:20, reminder 45 minutes before, Sam picks up.
@@ -161,4 +162,26 @@ Deno.test("a failing cleanup does not break the call", async () => {
   };
   const response = await call(failing);
   assertEquals(response.status, 200);
+});
+
+Deno.test("the nudge at leaving goes to the whole family, once", async () => {
+  // 07:30 in Berlin on Thursday 2026-12-03 (UTC+1); the morning digest was sent already.
+  const noted: FamilyData = {
+    ...emptyData,
+    pickupNotes: [{ weekday: 4, validFrom: "2026-09-01", note: "Ballet bag" }],
+  };
+  const { deps, pushes, tokenUsers } = setup({
+    now: "2026-12-03T06:30:00Z", data: noted, claimed: ["f1|2026-12-03|morning"],
+  });
+  assertEquals((await (await call(deps)).json()).sent, ["leave"]);
+  assertEquals((await (await call(deps)).json()).sent, []);
+  assertEquals(pushes.length, 1);
+  assertEquals(tokenUsers, [undefined]);
+  assertEquals(pushes[0].message.title, "🎒 Gleich geht's los");
+});
+
+Deno.test("no nudge on a day without something to take along", async () => {
+  const { deps, pushes } = setup({ now: "2026-12-03T06:30:00Z", claimed: ["f1|2026-12-03|morning"] });
+  assertEquals((await (await call(deps)).json()).sent, []);
+  assertEquals(pushes.length, 0);
 });

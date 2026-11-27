@@ -9,6 +9,8 @@ import {
   type FamilyData,
   formatEuro,
   isoWeekday,
+  leaveNudge,
+  bringNote,
   cleanupDue,
   pickupReminder,
   planDay,
@@ -62,6 +64,13 @@ Deno.test("date helpers", () => {
 });
 
 const data: FamilyData = {
+  pickupLabel: "Pickup",
+  pickupNotes: [
+    { weekday: 3, validFrom: "2026-09-01", note: "Book back, PE kit" },
+    { weekday: 4, validFrom: "2026-09-01", note: "Ballet bag" },
+    { weekday: 4, validFrom: "2027-01-11", note: "" },
+  ],
+  pickupNoteOverrides: { "2026-12-17": "Swimming kit", "2026-12-02": "" },
   items: [
     {
       title: "Ballet", startsOn: "2026-11-01", atTime: "16:00:00", weekdays: [4], repeatUntil: null,
@@ -125,6 +134,7 @@ Deno.test("the evening message talks about tomorrow and leaves out overdue tasks
 
 Deno.test("an empty day gets a friendly line", () => {
   const empty: FamilyData = {
+    pickupLabel: "Pickup", pickupNotes: [], pickupNoteOverrides: {},
     items: [], pickups: {}, pickupRemind: {}, pickupDrivers: {}, pickupOverrides: {}, holidays: [], tasks: [],
   };
   assertEquals(buildDigest("morning", planDay(empty, "2026-12-05"), () => 0).body, "Heute steht nichts an. Einen schönen Tag!");
@@ -137,6 +147,7 @@ Deno.test("long days are shortened", () => {
       title: `Termin ${i}`, startsOn: "2026-12-05", atTime: `1${i}:00:00`, weekdays: [], repeatUntil: null,
       skipHolidays: false, assignee: null, cashCents: null,
     })),
+    pickupLabel: "Pickup", pickupNotes: [], pickupNoteOverrides: {},
     pickups: {}, pickupRemind: {}, pickupDrivers: {}, pickupOverrides: {}, holidays: [], tasks: [],
   };
   const { body } = buildDigest("morning", planDay(many, "2026-12-05"), () => 0);
@@ -215,4 +226,43 @@ Deno.test("old suggestions are cleaned up at night, 30 days back", () => {
   assertEquals(cleanupDue(clock(2, 3, 59)), true);
   assertEquals(cleanupDue(clock(2, 4, 0)), false);
   assertEquals(suggestionCutoff(new Date("2026-12-31T02:00:00Z")), "2026-12-01T02:00:00.000Z");
+});
+
+Deno.test("the rhythm decides what to take along, and a new rhythm replaces the old one", () => {
+  // 2026-12-02 is a Wednesday (overridden to nothing), 2026-12-09 a Wednesday, 2026-12-03 a Thursday.
+  assertEquals(bringNote(data, "2026-12-09", false), "Book back, PE kit");
+  assertEquals(bringNote(data, "2026-12-03", false), "Ballet bag");
+  // From 2027-01-14 (Thursday) the empty note of the new rhythm counts.
+  assertEquals(bringNote(data, "2027-01-14", false), null);
+  // Before the first rhythm there is nothing.
+  assertEquals(bringNote(data, "2026-08-27", false), null);
+});
+
+Deno.test("a note for a single day wins over the rhythm, an empty one clears it", () => {
+  assertEquals(bringNote(data, "2026-12-17", false), "Swimming kit");
+  assertEquals(bringNote(data, "2026-12-02", false), null);
+});
+
+Deno.test("nothing is taken along in the holidays", () => {
+  assertEquals(bringNote(data, "2026-12-10", true), null);
+});
+
+Deno.test("the morning message and the evening message carry the note of their day", () => {
+  assertStringIncludes(buildDigest("morning", planDay(data, "2026-12-03"), () => 0).body, "🎒 Mitnehmen: Ballet bag");
+  assertStringIncludes(buildDigest("evening", planDay(data, "2026-12-02"), () => 0).body, "🎒 Mitnehmen: Ballet bag");
+});
+
+Deno.test("the label of the family is used for the pickup", () => {
+  const named: FamilyData = { ...data, pickupLabel: "Pickup Test" };
+  assertStringIncludes(buildDigest("morning", planDay(named, "2026-12-03"), () => 0).body, "Pickup Test 16:20 (Sam)");
+});
+
+Deno.test("the nudge at 7:30 comes only on days with something to take along", () => {
+  const clock = (date: string, weekday: number, minutes: number): Clock => ({ date, weekday, minutes });
+  assertEquals(leaveNudge(data, clock("2026-12-03", 4, 7 * 60 + 29)), null);
+  assertStringIncludes(leaveNudge(data, clock("2026-12-03", 4, 7 * 60 + 30))?.body ?? "", "Ballet bag");
+  assertStringIncludes(leaveNudge(data, clock("2026-12-03", 4, 8 * 60 + 40))?.body ?? "", "Ballet bag");
+  assertEquals(leaveNudge(data, clock("2026-12-03", 4, 9 * 60 + 5)), null);
+  // Monday has no note.
+  assertEquals(leaveNudge(data, clock("2026-12-07", 1, 7 * 60 + 30)), null);
 });

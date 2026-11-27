@@ -15,6 +15,7 @@ import {
   cleanupDue,
   dueSlots,
   type FamilyData,
+  leaveNudge,
   type LogSlot,
   pickupReminder,
   planDay,
@@ -95,6 +96,24 @@ async function sendPickupReminder(familyId: string, clock: Clock, deps: Dependen
   }
 }
 
+/** Sends the nudge at leaving the house to the whole family, once per day. Returns true if it was sent. */
+async function sendLeaveNudge(familyId: string, clock: Clock, deps: Dependencies): Promise<boolean> {
+  const data = await deps.store.loadFamilyData(familyId);
+  const message = leaveNudge(data, clock);
+  if (!message) return false;
+  if (!(await deps.store.claimSlot(familyId, clock.date, "leave"))) return false;
+  try {
+    const tokens = await deps.store.loadDeviceTokens(familyId);
+    if (tokens.length === 0) return true;
+    const { invalid } = await deps.push(tokens, message);
+    if (invalid.length > 0) await deps.store.deleteDeviceTokens(invalid);
+    return true;
+  } catch (error) {
+    await deps.store.releaseSlot(familyId, clock.date, "leave");
+    throw error;
+  }
+}
+
 export async function handleRequest(req: Request, deps: Dependencies): Promise<Response> {
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
   const given = req.headers.get("x-digest-secret");
@@ -117,6 +136,11 @@ export async function handleRequest(req: Request, deps: Dependencies): Promise<R
         if (await sendPickupReminder(familyId, clock, deps)) sent.push("pickup");
       } catch (error) {
         console.error("pickup reminder failed", error instanceof Error ? error.message : "unknown error");
+      }
+      try {
+        if (await sendLeaveNudge(familyId, clock, deps)) sent.push("leave");
+      } catch (error) {
+        console.error("leave nudge failed", error instanceof Error ? error.message : "unknown error");
       }
     }
     let cleaned: number | undefined;
@@ -154,7 +178,8 @@ async function createStore(): Promise<Store> {
       return (data ?? []).map((row) => row.id as string);
     },
     async loadFamilyData(familyId) {
-      const [items, pickups, holidays, tasks, accounts, people, drivers, overrides] = await Promise.all([
+      const [items, pickups, holidays, tasks, accounts, people, drivers, overrides, notes, noteDays, family] =
+        await Promise.all([
         client.from("calendar_items")
           .select("title,starts_on,at_time,weekdays,repeat_until,skip_holidays,assignee,assignee_person,cash_cents")
           .eq("family_id", familyId),
@@ -167,10 +192,14 @@ async function createStore(): Promise<Store> {
         client.from("household_people").select("id,display_name").eq("family_id", familyId),
         client.from("pickup_drivers").select("day,driver").eq("family_id", familyId).gte("day", yesterday()),
         client.from("pickup_overrides").select("day,pickup_time").eq("family_id", familyId).gte("day", yesterday()),
+        client.from("pickup_notes").select("weekday,valid_from,note").eq("family_id", familyId),
+        client.from("pickup_note_overrides").select("day,note").eq("family_id", familyId).gte("day", yesterday()),
+        client.from("families").select("pickup_label").eq("id", familyId).single(),
       ]);
       for (const result of [items, pickups, holidays, tasks, accounts, people, drivers, overrides]) {
         fail(result.error);
       }
+      // The notes and the label are extras: before their migration is applied they are simply empty.
       const names = new Map<string, string>();
       for (const row of accounts.data ?? []) names.set(row.user_id as string, row.display_name as string);
       for (const row of people.data ?? []) names.set(row.id as string, row.display_name as string);
@@ -188,7 +217,16 @@ async function createStore(): Promise<Store> {
         const id = row.driver as string;
         pickupDrivers[row.day as string] = { id, name: names.get(id) ?? "?" };
       }
+      const pickupNoteOverrides: Record<string, string> = {};
+      for (const row of noteDays.data ?? []) pickupNoteOverrides[row.day as string] = row.note as string;
       return {
+        pickupLabel: (family.data?.pickup_label as string | undefined) ?? "Pickup",
+        pickupNotes: (notes.data ?? []).map((row) => ({
+          weekday: row.weekday as number,
+          validFrom: row.valid_from as string,
+          note: row.note as string,
+        })),
+        pickupNoteOverrides,
         items: (items.data ?? []).map((row) => ({
           title: row.title as string,
           startsOn: row.starts_on as string,
