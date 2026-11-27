@@ -199,14 +199,15 @@ export function buildDigest(
   random: () => number = Math.random,
 ): { title: string; body: string } {
   const titles = slot === "morning" ? MORNING_TITLES : EVENING_TITLES;
-  const pickupOpen = plan.pickup !== null && plan.pickupDriver === null;
-  const title = pickupOpen
-    ? (slot === "morning" ? "🚗 Wer holt heute ab?" : "🚗 Wer holt morgen ab?")
-    : titles[Math.floor(random() * titles.length) % titles.length];
+  const title = titles[Math.floor(random() * titles.length) % titles.length];
   const lines: string[] = [];
   if (plan.holiday) lines.push(`Ferien: ${plan.holiday}`);
   if (plan.pickup) {
-    lines.push(plan.pickupDriver ? `Abholung ${plan.pickup} (${plan.pickupDriver})` : `Abholung ${plan.pickup}: noch niemand eingetragen`);
+    lines.push(
+      plan.pickupDriver
+        ? `Abholung ${plan.pickup} (${plan.pickupDriver})`
+        : `🚗 Abholung ${plan.pickup}: noch niemand eingetragen`,
+    );
   }
   for (const item of plan.items.slice(0, MAX_ITEM_LINES)) {
     lines.push(`${item.time} ${withPerson(item.title, item.assignee)}`);

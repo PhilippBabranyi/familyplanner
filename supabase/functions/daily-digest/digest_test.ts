@@ -149,20 +149,20 @@ Deno.test("euro amounts", () => {
   assertEquals(formatEuro(2505), "25,05 €");
 });
 
-Deno.test("an open pickup is asked for in the title and the text", () => {
+Deno.test("an open pickup is the first line, the title stays the briefing title", () => {
   const monday = planDay(data, "2026-12-07");
   assertEquals(monday.pickup, "15:20");
   assertEquals(monday.pickupDriver, null);
   const morning = buildDigest("morning", monday, () => 0);
-  assertEquals(morning.title, "🚗 Wer holt heute ab?");
-  assertStringIncludes(morning.body, "Abholung 15:20: noch niemand eingetragen");
-  assertEquals(buildDigest("evening", monday, () => 0).title, "🚗 Wer holt morgen ab?");
+  assertEquals(morning.title, "☀️ Guten Morgen! Das steht heute an");
+  assertEquals(morning.body.split("\n")[0], "🚗 Abholung 15:20: noch niemand eingetragen");
+  assertEquals(buildDigest("evening", monday, () => 0).title, "🌙 Morgen auf dem Plan");
 });
 
 Deno.test("days without a pickup do not ask who picks up", () => {
   const tuesday = planDay(data, "2026-12-08");
   assertEquals(tuesday.pickup, null);
-  assertEquals(buildDigest("morning", tuesday, () => 0).title.includes("Wer holt"), false);
+  assertEquals(buildDigest("morning", tuesday, () => 0).body.includes("niemand eingetragen"), false);
 });
 
 const thursday = (hour: number, minute: number): Clock => ({ date: "2026-12-03", weekday: 4, minutes: hour * 60 + minute });

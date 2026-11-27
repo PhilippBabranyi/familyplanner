@@ -13,8 +13,8 @@ Times are Berlin time. They are fixed in `supabase/functions/daily-digest/digest
 ## Pickup: who and when to leave
 
 - On the week screen the card "Abholung" has a menu "Wer holt ab?". Nobody is entered by default (table
-  `pickup_drivers`, one row per day). If a day with a pickup has nobody, the morning and evening push say so
-  ("Wer holt heute ab?").
+  `pickup_drivers`, one row per day). If a day with a pickup has nobody, the first line of the morning and evening
+  push says so ("🚗 Abholung 15:20: noch niemand eingetragen").
 - The person who is entered gets the push "Zeit zum Losfahren" `remind_minutes` before the pickup (30 by default,
   set in "Abholung & Ferien"). Only that person's phones get it. It is sent once per day (slot `pickup`).
 - A single day can differ from the weekly time (table `pickup_overrides`): the card has "Nur dieser Tag" with a
