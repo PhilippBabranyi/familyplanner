@@ -6,6 +6,7 @@ struct WeekView: View {
     @State private var selectedDay: Weekday?
     @State private var editor: ItemEditorTarget?
     @State private var showsPickups = false
+    @State private var filter: ItemFilter = .all
 
     /// In the current week the selected day defaults to today, in any other week to Monday.
     private var day: Weekday { selectedDay ?? (model.isShowingCurrentWeek ? model.todayWeekday : .monday) }
@@ -60,7 +61,9 @@ struct WeekView: View {
                         .background(Theme.sage, in: Capsule())
                 }
 
-                ForEach(plan.items(on: day)) { item in
+                ItemFilterBar(selection: $filter, others: model.accounts.map(\.name).filter { $0 != model.memberName })
+
+                ForEach(plan.items(on: day).filter { filter.matches($0, viewer: model.memberName) }) { item in
                     WeekItemRow(item: item)
                         .contentShape(Rectangle())
                         .onTapGesture { edit(item) }

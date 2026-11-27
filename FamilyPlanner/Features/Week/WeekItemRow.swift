@@ -35,11 +35,7 @@ struct WeekItemRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text(item.assignee.map { String($0.prefix(1)).uppercased() } ?? "F")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(Theme.text)
-                .frame(width: 30, height: 30)
-                .background(AssigneePalette.color(for: item.assignee), in: Circle())
+            AssigneeBadge(assignee: item.assignee)
         }
         .padding(.leading, 18)
         .padding(.trailing, 14)
